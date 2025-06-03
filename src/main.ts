@@ -2,19 +2,19 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as session from 'express-session';
-import { ConfigService } from './config/config.service';
+import { ConfigService } from '@nestjs/config';
 import * as express from 'express';
 import { join } from 'path';
 import * as fs from 'fs';
 
 async function bootstrap() {
+  /*
   const httpsOptions = {
     key: fs.readFileSync('certs/key.pem'),
     cert: fs.readFileSync('certs/cert.pem'),
   };
-  const app = await NestFactory.create(AppModule, {
-    httpsOptions,
-  });
+  */
+  const app = await NestFactory.create(AppModule /*, { httpsOptions, }*/);
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
@@ -36,7 +36,7 @@ async function bootstrap() {
           configService.get('SESSION_MAX_AGE') || '86400000',
           10,
         ),
-        secure: configService.isProduction(),
+        secure: configService.get('NODE_ENV') === 'production',
       },
     }),
   );
@@ -84,7 +84,7 @@ async function bootstrap() {
     }
   });
 
-  const port = process.env.PORT || 4000;
+  const port = process.env.PORT || 5000;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
 }

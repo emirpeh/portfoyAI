@@ -1,42 +1,54 @@
-import { Module, forwardRef } from '@nestjs/common';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { forwardRef, Module } from '@nestjs/common';
 import { MailService } from './mail.service';
-import { PrismaModule } from '../prisma/prisma.module';
-import { CustomerModule } from '../customer/customer.module';
-import { OfferModule } from '../offer/offer.module';
-import { SupplierModule } from '../supplier/supplier.module';
-import { GptModule } from '../gpt/gpt.module';
 import { MailController } from './mail.controller';
+import { MailerModule as NestMailerModule } from '@nestjs-modules/mailer';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { join } from 'path';
+import { PrismaModule } from '../prisma/prisma.module';
+import { GptModule } from '../gpt/gpt.module';
+import { CustomerModule } from '../customer/customer.module';
+import { RealEstateModule } from '../real-estate/real-estate.module';
+import { PropertySearchRequestModule } from '../property-search-request/property-search-request.module';
+import { MailLogService } from './mail-log.service';
+import { MailProcessingService } from './mail-processing.service';
 
 @Module({
   imports: [
-    MailerModule.forRootAsync({
+    ConfigModule,
+    NestMailerModule.forRootAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         transport: {
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true,
+          host: configService.get('MAIL_HOST'),
+          port: parseInt(configService.get('MAIL_PORT')),
+          secure: configService.get('MAIL_SECURE') === 'true',
           auth: {
-            user: configService.get('GMAIL_USER'),
-            pass: configService.get('GMAIL_PASSWORD'),
+            user: configService.get('MAIL_USER'),
+            pass: configService.get('MAIL_PASS'),
           },
         },
         defaults: {
-          from: configService.get('GMAIL_USER'),
+          from: configService.get('MAIL_FROM'),
+        },
+        template: {
+          dir: join(__dirname, 'templates'),
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
         },
       }),
+      inject: [ConfigService],
     }),
     PrismaModule,
-    CustomerModule,
-    forwardRef(() => OfferModule),
-    SupplierModule,
+    forwardRef(() => CustomerModule),
+    forwardRef(() => RealEstateModule),
     GptModule,
+    forwardRef(() => PropertySearchRequestModule),
   ],
   controllers: [MailController],
-  providers: [MailService],
-  exports: [MailService],
+  providers: [MailService, MailLogService, MailProcessingService],
+  exports: [MailService, MailLogService, MailProcessingService],
 })
 export class MailModule {}

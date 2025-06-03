@@ -1,5 +1,12 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+
+// Role enum'u manuel olarak tanımlıyoruz
+enum Role {
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+  CUSTOMER = 'CUSTOMER'
+}
 
 const prisma = new PrismaClient();
 
@@ -7,21 +14,20 @@ async function main() {
   // Default admin kullanıcısı var mı kontrol et
   const existingAdmin = await prisma.user.findFirst({
     where: {
-      email: 'info@maxitransport.net',
-      isDefault: true,
+      email: 'admin@portfolioai.com', // Emlak sektörü için uygun e-posta
     },
   });
 
   if (!existingAdmin) {
-    const hashedPassword = await bcrypt.hash('MAXI2023', 10);
+    const hashedPassword = await bcrypt.hash('PortfolioAI2023', 10); // Güvenli şifre
 
     // Default admin kullanıcısını oluştur
     await prisma.user.create({
       data: {
-        email: 'info@maxitransport.net',
+        email: 'admin@portfolioai.com',
         password: hashedPassword,
         role: Role.ADMIN,
-        isDefault: true,
+        name: 'Admin User',
       },
     });
 

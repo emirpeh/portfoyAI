@@ -1,58 +1,54 @@
-export const analyzeEmailPrompt = (brokerList: string[]) => {
+export const analyzeEmailPrompt = (locationList: string[] = []) => {
   const prompt = `
-Aşağıdaki e-postalar **Maxi Logistik** (Türkiye) hesabına aittir.  
-İçeriği — varsa **önceki mail** ve/veya **önceki teklif** verisiyle birlikte —  
-analiz et ve kurallara göre **JSON** döndür.
+Aşağıdaki e-postalar **PortföyAI** (Türkiye) emlak şirketine aittir.  
+İçeriği analiz et ve kurallara göre **JSON** döndür.
 
 ──────────────────────────────────────────────────────────────────────────────
-EKSTRA KURAL — ANLAMLANDIRMA, ŞEHİR, LDM HESABI, FOREIGN TRADE
+EKSTRA KURAL — ANLAMLANDIRMA, ŞEHİR, BÖLGE, FİYAT, İSTEK TİPİ
 ──────────────────────────────────────────────────────────────────────────────
-• Müşteri tarafından verilen herhangi bir bilgi (ülke, şehir, gümrük ofisi, adres vb.)
-  doğrudan kopyalanmaz, **doğru, standart, kanonik ve anlaşılır** şekilde şemada yer alır.
-  • "TR", "TRK", "Turkey" gibi ülke kısaltmaları → "Türkiye" olarak normalize edilir.
-  • Gümrük ofisi adı (“Muratbey Kerry Asav geçici depolama” gibi), *broker listesinde* eşleşiyorsa, "customs" alanına **kanonik adıyla** yazılır.
-  • Gümrük ofisinin hangi şehirde olduğu sektörce biliniyorsa, “deliveryCity” veya “loadCity” alanı **doğru şehir adıyla** doldurulur (ör. "Muratbey" → "İstanbul").
-  • Adreste gümrük adı varsa ve şehir bilgisi belirlenemiyorsa, ilgili şehir alanı null bırakılır.
-• E-posta içeriğinde **boyut/adet ölçüleri** veriliyorsa, “calculatedVolume” ve “calculatedLdm” **mutlaka** hesaplanıp yazılır.
-  • Hacim (m³): adet × en × boy × yükseklik
-  • LDM: (genişlik (m) × adet) / 2.4 
-  • Sadece ölçü eksikse hesap yapılmaz. 
-• "foreignTrade" alanı, içerikteki ifadelere göre otomatik belirlenir:
-  • "ithalat", "import", "alım" → IM
-  • "ihracat", "export", "gönderim" → EX
-  • "ithal/ihracat" → TRN
+• Kişinin alıcı mı satıcı mı olduğunu belirle.
+• Müşteri tarafından verilen herhangi bir bilgi (şehir, ilçe, mahalle, adres, fiyat vb.)
+  doğrudan kopyalanmaz, **doğru, standart ve anlaşılır** şekilde şemada yer alır.
+• Şehir, ilçe ve mahalle isimleri tam ve doğru şekilde yazılmalıdır.
+• Fiyat bilgisi belirtilmişse para birimi ile birlikte işlenir (TL, USD, EUR).
+• Gayrimenkul tipini doğru belirle: APARTMENT (daire), HOUSE (ev), VILLA, LAND (arsa), COMMERCIAL (ticari), OFFICE (ofis).
+• Gayrimenkul detaylarını mümkün olduğunca eksiksiz doldur:
+  • Metrekare (m²) bilgisi
+  • Oda sayısı
+  • Banyo sayısı
+  • Kat bilgisi
+  • Ek özellikler (bahçe, havuz, garaj, eşyalı olma durumu)
 ──────────────────────────────────────────────────────────────────────────────
 1) GENEL KURALLAR
 ──────────────────────────────────────────────────────────────────────────────
-• Mail *yeni teklif isteği* ise eski veriler **yok sayılır**.  
-• Değilse önceki mail/offer verileri **kullanılır**.  
-• Eksik / çelişkili bilgi → \`isThereMissingOrIncorrectInformation: true\`.  
+• Mail *yeni bir alım/satım talebi* ise \`customerType\` alanını doğru doldur.  
+• Eksik / çelişkili bilgi → \`isMissingInformation: true\`.  
 • Yanıtlar nazik ve profesyonel olmalı.  
-• E-posta içeriğini kullan fakat bu bilgileri \`request\` alanlarına  
+• E-posta içeriğini kullan fakat bilgileri \`property\` alanlarına  
   **doğrudan kopyalama**, önce anlamlandır.
 
 \`type\` alanı →  
-  CUSTOMER_NEW_OFFER_REQUEST | CUSTOMER_REQUEST_CORRECTION_FROM_CUSTOMER |  
-  SUPPLIER_NEW_OFFER | OTHER
+  BUYER_INQUIRY | SELLER_LISTING | PROPERTY_VIEWING_REQUEST | OTHER
 
 ──────────────────────────────────────────────────────────────────────────────
-2) LOJİSTİK HESAPLAMA
+2) EMLAK BİLGİLERİ ÇIKARIMI
 ──────────────────────────────────────────────────────────────────────────────
-• Standart TIR: 13.60 m × 2.45 m × 2.75 m  (≈ 91.5 m³) • Maks LDM = 13.6  
-• Palet ölçüsü varsa →  
-  • Hacim (m³) = adet × en × boy × yükseklik (m)  
-  • LDM = (palet genişliği (m) × adet) / 2.4  
-• Ölçü / adet eksikse hesaplama **yapma**.  
-• \`containerDimensions\` değeri m ise ×100 → cm’ye çevir.  
-• Sonuçları \`request.calculatedVolume\` ve \`request.calculatedLdm\`
-  alanlarına yaz.
+• Alıcı talepleri için:
+  • Aradığı gayrimenkul tipi
+  • Tercih ettiği bölgeler
+  • Bütçe aralığı
+  • Özel istekler (kat, oda sayısı, bahçe vb.)
+• Satıcı talepleri için:
+  • Satılacak gayrimenkulün tipi
+  • Tam konumu (şehir, ilçe, mahalle)
+  • Fiyatı ve para birimi
+  • Gayrimenkulün tüm özellikleri
 
 ──────────────────────────────────────────────────────────────────────────────
-3) JSON ŞEMASI  (boş değerler *null* olmalı)
+3) JSON ŞEMASI (boş değerler *null* olmalı)
 ──────────────────────────────────────────────────────────────────────────────
 {
   "type": string,
-  "offerNo": string | null,
   "from": string,
   "cc": string[] | null,
   "contentTitle": string,
@@ -61,67 +57,64 @@ EKSTRA KURAL — ANLAMLANDIRMA, ŞEHİR, LDM HESABI, FOREIGN TRADE
   "customer": {
     "name": string | null,
     "email": string | null,
-    "gender": "MALE" | "FEMALE" | null
+    "gender": "MALE" | "FEMALE" | null,
+    "customerType": "BUYER" | "SELLER" | "BOTH" | null
   },
 
-  "language": "turkish" | "english" | "croatian" | "slovenian" | "bosnian" | "macedonian",
+  "language": "turkish" | "english",
 
-  "request": {
-    "loadDate": Date | null,
-    "loadCountry": string | null,
-    "loadCity": string | null,
-    "packagingType": string | null,
-    "numOfContainers": number | null,
-    "containerType": string | null,
-    "containerDimensions": string | null,
-    "goodsType": string | null,
-    "customs": string | null,               // Sadece gümrük ofisi/firma adı, şahsi ad asla olmayacak
-    "isStackable": "true" | "false" | null,
-    "foreignTrade": "IM" | "EX" | "TRN" | "",
-    "deliveryDate": Date | null,
-    "deliveryCountry": string | null,
-    "deliveryCity": string | null,
-    "deliveryPostalCode": string | null,
-    "calculatedVolume": number | null,
-    "calculatedLdm": number | null
+  "property": {
+    "propertyType": "APARTMENT" | "HOUSE" | "VILLA" | "LAND" | "COMMERCIAL" | "OFFICE" | null,
+    "location": string | null,
+    "city": string | null,
+    "district": string | null,
+    "neighborhood": string | null,
+    "price": number | null,
+    "currency": "TL" | "USD" | "EUR" | null,
+    "size": number | null,
+    "roomCount": number | null,
+    "bathroomCount": number | null,
+    "floor": number | null,
+    "totalFloors": number | null,
+    "hasGarage": boolean | null,
+    "hasGarden": boolean | null,
+    "hasPool": boolean | null,
+    "isFurnished": boolean | null,
+    "yearBuilt": number | null,
+    "description": string | null,
+    "features": string | null
   },
 
-  "offer": {
-    "prices": { "price": number, "note": string }[] | null
+  "buyerPreferences": {
+    "preferredLocations": string[] | null,
+    "budgetMin": number | null,
+    "budgetMax": number | null,
+    "preferredPropertyTypes": string[] | null,
+    "minRoomCount": number | null,
+    "minSize": number | null,
+    "mustHaveFeatures": string[] | null
   },
 
   "modelResponseTitle": string,
   "modelResponseMail": string,
 
-  "isThereMissingOrIncorrectInformation": boolean,
+  "isMissingInformation": boolean,
 
-  "supplierMails": {
-    "turkish"?:    { "modelResponseTitle": string, "modelResponseMail": string },
-    "english"?:    { "modelResponseTitle": string, "modelResponseMail": string },
-    "croatian"?:   { "modelResponseTitle": string, "modelResponseMail": string },
-    "slovenian"?:  { "modelResponseTitle": string, "modelResponseMail": string },
-    "bosnian"?:    { "modelResponseTitle": string, "modelResponseMail": string },
-    "macedonian"?: { "modelResponseTitle": string, "modelResponseMail": string }
+  "suggestedListings": {
+    "listingIds": number[] | null
   }
 }
 
 ──────────────────────────────────────────────────────────────────────────────
-11) CUSTOMS BROKER EŞLEŞTİRME (GÜMRÜK BİLGİSİ)
+4) BÖLGE EŞLEŞTİRME
 ──────────────────────────────────────────────────────────────────────────────
-• Aşağıdaki **BROKER LİSTESİ** yalnızca Türkiye’de geçerli gümrük ofisi/firma adlarıdır; sadece bu adları (veya varyasyonlarını) tanı ve "customs" alanında kullan.
-• Kişi ismi veya şahsi/unvan içeren ifadeleri "customs" alanına ASLA YAZMA.
-• Mail gövdesinde bu adların *herhangi bir varyasyonu*  
-  (büyük/küçük harf, Türkçe karakter, tire/boşluk farkı, yazım hatası vb.)  
-  geçiyorsa **en yakın kanonik** ismi seç ve  
-  \`request.customs\` alanına **aynen** yaz.  
-• Hiçbir eşleşme yoksa \`request.customs = null\`.  
-• Mail metninde gümrük/broker bilgisi olarak şahsi ad, unvan veya kişi ismi geçiyorsa "customs" alanını boş bırak.
-• Tahmin yapma.  
-• Mail metninde “gümrük / broker / customs” kelimeleri veya BROKER LİSTESİ’nden
-  bir ad GEÇMİYORSA 'customs' alanını **kesinlikle doldurma**.
+• E-postada bahsedilen şehir, ilçe ve mahalle isimlerini doğru şekilde tespit et.
+• Eğer bölge bilgisi belirsizse en yakın tahminini kullan.
+• Şehir isimlerini tam olarak yaz (İstanbul, Ankara, İzmir, vb.).
+• İlçe isimlerini tam olarak yaz (Kadıköy, Beşiktaş, Çankaya, vb.).
 
-BROKER LİSTESİ (YALNIZCA aşağıdaki isimleri kullan, şahıs/ad/unvan kullanma):
-${brokerList.map(b => `- ${b}`).join('\n')}
+POPÜLER BÖLGELER (yaygın şehirler ve ilçeler):
+${locationList.join('\n')}
 `;
   return prompt.trim();
 };

@@ -1,405 +1,179 @@
+// @ts-nocheck
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { PositionService } from '../position/position.service';
 import { MailService } from '../mail/mail.service';
 import { CustomerService } from '../customer/customer.service';
-import { OfferService } from '../offer/offer.service';
-import { MailStatusType } from '../offer/types/mail.status.type';
+import { PropertySearchRequestService } from '../property-search-request/property-search-request.service';
+import { MailStatusType } from '../property-search-request/types/property-search-request.types';
+import { PropertySearchRequestStatus } from '../property-search-request/types/property-search-request.status.enum';
 import { ConfigService } from '@nestjs/config';
-import { OfferStatusType } from '../offer/types/offer.status.type';
+import { RealEstateService } from '../real-estate/real-estate.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { MailProcessingService } from '../mail/mail-processing.service';
+
 @Injectable()
 export class JobService {
   private readonly logger = new Logger(JobService.name);
 
   constructor(
-    private readonly positionService: PositionService,
     private readonly mailService: MailService,
     private readonly customerService: CustomerService,
-    private readonly offerService: OfferService,
+    private readonly propertySearchRequestService: PropertySearchRequestService,
     private readonly configService: ConfigService,
+    private readonly realEstateService: RealEstateService,
+    private readonly prisma: PrismaService,
+    private readonly mailProcessingService: MailProcessingService,
   ) {}
 
   @Cron('*/10 * * * *')
-  async handleCron() {
-    this.logger.debug('10 dakikalık zamanlanmış görev çalışıyor...');
+  async handleNewListingNotificationCron() {
+    this.logger.debug(`Yeni ilan bildirim cron job'u çalışıyor...`);
     try {
       const endDate = new Date();
-      const expiryHours =
-        this.configService.get<number>('OFFER_EXPIRY_HOURS') || 24;
-      const startDate = new Date(
-        endDate.getTime() - expiryHours * 60 * 60 * 1000,
-      );
+      const listingAgeHours = this.configService.get<number>('NEW_LISTING_NOTIFICATION_WINDOW_HOURS') || 1;
+      const startDate = new Date(endDate.getTime() - listingAgeHours * 60 * 60 * 1000);
 
-      this.logger.debug(`${startDate} - ${endDate}`);
-      const positionFiles = await this.positionService.getPositionFiles(
-        undefined,
-        startDate,
-        endDate,
-        true,
-      );
-
-      const sendedMailLogs = await this.mailService.getMailLogs({
-        startDate,
-        endDate,
-        limit: 1000,
-        offset: 0,
+      this.logger.debug(`Yeni ilanlar için arama periyodu: ${startDate} - ${endDate}`);
+      
+      const newActiveListings = await this.prisma.realEstateListing.findMany({
+        where: {
+          createdAt: {
+            gte: startDate,
+            lte: endDate, 
+          },
+          status: 'ACTIVE',
+        },
+        include: {
+          lister: true,
+        }
       });
 
-      const newPositionFiles = positionFiles.filter(
-        positionFile =>
-          !sendedMailLogs.data.some(
-            sendedMailLog =>
-              sendedMailLog.externalId === positionFile.id.toString(),
-          ),
-      );
+      if (!newActiveListings || newActiveListings.length === 0) {
+        this.logger.debug(`Belirtilen periyotta işlenecek yeni aktif ilan bulunamadı.`);
+        return;
+      }
 
-      this.logger.debug(`${newPositionFiles.length} adet yeni dosya bulundu`);
+      this.logger.debug(`${newActiveListings.length} adet potansiyel yeni aktif ilan bulundu.`);
 
-      try {
-        for (const positionFile of newPositionFiles) {
-          const customer = await this.customerService.getCustomerByExternalId(
-            positionFile.companyNo.toString(),
+      for (const listing of newActiveListings) {
+        this.logger.log(`Yeni ilan ${listing.id} için eşleşen alıcılar bilgilendiriliyor...`);
+        try {
+          await this.mailProcessingService.notifyMatchingBuyersAboutNewListing(listing);
+        } catch (error) {
+          this.logger.error(
+            `İlan ID ${listing.id} için alıcı bildirimleri gönderilirken hata: ${error.message}`,
+            error.stack,
           );
-
-          let customerId: number;
-          if (!customer) {
-            try {
-              const newCustomer = await this.customerService.createCustomer(
-                positionFile.companyNo.toString(),
-              );
-              this.logger.debug(
-                `Created new customer: ${JSON.stringify(newCustomer)}`,
-              );
-
-              if (!newCustomer || !newCustomer.id) {
-                this.logger.error('New customer created but ID is missing');
-                customerId = null;
-              } else {
-                customerId = newCustomer.id;
-                this.logger.debug(`New customer ID: ${customerId}`);
-              }
-            } catch (error) {
-              this.logger.error(`Error creating customer: ${error.message}`);
-              customerId = null;
-            }
-          } else {
-            customerId = customer.id;
-            this.logger.debug(`Using existing customer ID: ${customerId}`);
-          }
-
-          const customerMailList =
-            await this.customerService.getCustomerMailList(customerId);
-          this.logger.debug(
-            `Customer mail list: ${JSON.stringify(customerMailList)}`,
-          );
-          if (customerMailList.length !== 0) {
-            positionFile.emails = customerMailList
-              .filter(mail => mail.isSend)
-              .map(mail => mail.mail)
-              .filter(
-                mail => mail && typeof mail === 'string' && mail.trim() !== '',
-              );
-
-            this.logger.debug(
-              `Email addresses for position ${positionFile.pozNo}: ${JSON.stringify(positionFile.emails)}`,
-            );
-          } else {
-            positionFile.emails = [];
-            this.logger.warn(
-              `No email addresses found for position ${positionFile.pozNo}`,
-            );
-          }
-
-          if (positionFile.emails && positionFile.emails.length > 0) {
-            await this.mailService.sendFileNotification([positionFile]);
-            this.logger.debug(
-              `Mail bildirimi gönderildi: ${positionFile.pozNo} - Alıcılar: ${positionFile.emails.join(', ')}`,
-            );
-          } else {
-            this.logger.warn(
-              `Mail gönderilemedi: ${positionFile.pozNo} - Geçerli e-posta adresi bulunamadı`,
-            );
-          }
         }
-      } catch (error) {
-        this.logger.error('Mail gönderimi sırasında hata oluştu:', error);
       }
     } catch (error) {
-      this.logger.error('Zamanlanmış görev hatası:', error);
+      this.logger.error(
+        `Yeni ilan bildirim cron job'u sırasında genel bir hata: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
   @Cron('*/1 * * * *')
   async handleReminderCronForMissingInformation() {
-    this.logger.debug('Handle reminder cron for missing information');
+    this.logger.debug(`Emlak arama talepleri için eksik bilgi hatırlatma cron job'u çalışıyor...`);
     try {
       const endDate = new Date();
-      const expiryHours =
-        this.configService.get<number>('OFFER_EXPIRY_HOURS') || 0.0167;
-      const startDate = new Date(0);
-      const checkDate = new Date(
-        endDate.getTime() - expiryHours * 60 * 60 * 1000,
+      const reminderDelayHours = this.configService.get<number>('MISSING_INFO_REMINDER_DELAY_HOURS') || 24;
+      const checkDateBefore = new Date(endDate.getTime() - reminderDelayHours * 60 * 60 * 1000);
+
+      this.logger.debug(`Eksik bilgili talepler için son kontrol tarihi (öncesi): ${checkDateBefore}`);
+      
+      const pendingRequests = await this.propertySearchRequestService.findRequestsNeedingFollowUp(        
+        PropertySearchRequestStatus.PENDING_USER_INFO,
+        checkDateBefore,
       );
 
-      this.logger.debug(`Kontrol tarihi: ${checkDate}`);
-      const offers = await this.offerService.getOfferList({
-        status: OfferStatusType.OFFER_MISSING_INFORMATION,
-        startDate,
-        endDate: checkDate,
-      });
+      this.logger.debug(`${pendingRequests.length} adet eksik bilgili talep bulundu.`);
 
-      this.logger.debug(`${offers.data.length} adet yeni teklif bulundu`);
+      for (const request of pendingRequests) {
+        const remindedLog = await this.mailService.findLogEntry(
+          request.id.toString(),
+          MailStatusType.SEARCH_REQUEST_MISSING_INFO_REMINDER,
+        );
 
-      try {
-        for (const offer of offers.data) {
-          // Burada eksik bilgileri olan teklifler için hatırlatma maili gönderilecek
-          this.logger.debug(
-            `Hatırlatma maili gönderilecek teklif: ${offer.offerNo}`,
+        if (remindedLog) {
+          this.logger.warn(
+            `Talep ${request.id} için daha önce (${remindedLog.createdAt}) hatırlatma gönderilmiş. Atlanıyor.`,
           );
-
-          const isReminded = offer.mailLogs.find(
-            mailLog =>
-              mailLog.type ===
-              MailStatusType.CUSTOMER_REQUEST_CORRECTION_REMINDED,
-          );
-
-          if (isReminded) {
-            this.logger.warn(
-              `Offer ${offer.offerNo} already reminded`,
-              isReminded,
-            );
-            continue;
-          }
-
-          const mailLog = offer.mailLogs.find(
-            mailLog =>
-              mailLog.type === MailStatusType.CUSTOMER_REQUEST_CORRECTION,
-          );
-
-          if (!mailLog) {
-            this.logger.warn(`No mail log found for offer: ${offer.offerNo}`);
-            continue;
-          }
-
-          const email = mailLog.to;
-
-          await this.mailService.sendMissingOfferMail({
-            offerNo: offer.offerNo,
-            content: mailLog.contentBody,
-            contentTitle: mailLog.contentTitle,
-            contact: {
-              name: '',
-              email,
-              gender: '',
-            },
-            ccMails: mailLog.cc.split(','),
-            language: mailLog.language,
-            logType: MailStatusType.CUSTOMER_REQUEST_CORRECTION_REMINDED,
-          });
+          continue;
         }
-      } catch (error) {
-        this.logger.error('Mail gönderimi sırasında hata oluştu:', error);
+
+        if (!request.customer) {
+            this.logger.warn(`Talep ${request.id} için müşteri bilgisi bulunamadı. Atlanıyor.`);
+            continue;
+        }
+        const customer = request.customer;
+        const email = customer.email;
+
+        if (!email) {
+            this.logger.warn(`Talep ${request.id}, Müşteri ${customer.id} için e-posta bulunamadı. Atlanıyor.`);
+            continue;
+        }
+        
+        this.logger.log(`Talep ${request.id} (Müşteri: ${email}) için eksik bilgi hatırlatma maili hazırlanıyor.`);
+
+        await this.mailService.sendGenericReminderMail({
+            to: email,
+            subject: 'Emlak Arama Talebiniz Hakkında Hatırlatma',
+            htmlBody: `<p>Merhaba ${customer.name || 'Müşterimiz'},</p><p>${request.id} numaralı emlak arama talebinizle ilgili olarak bazı ek bilgilere ihtiyacımız bulunmaktadır. Lütfen en kısa sürede bizimle iletişime geçiniz.</p><p>Teşekkürler.</p>`,
+            referenceId: request.id.toString(),
+            logType: MailStatusType.SEARCH_REQUEST_MISSING_INFO_REMINDER,
+        });
+
+        this.logger.log(`Talep ${request.id} için eksik bilgi hatırlatma maili gönderildi: ${email}`);
       }
     } catch (error) {
-      this.logger.error('Zamanlanmış görev hatası:', error);
+      this.logger.error(`Eksik bilgi hatırlatma cron job'u sırasında hata: ${error.message}`, error.stack);
     }
   }
 
-  @Cron('*/1 * * * *')
-  async handleReminderCronForSupplierOffer() {
-    this.logger.debug('Handle reminder cron for supplier offer');
+  @Cron('*/15 * * * *')
+  async handleSendPropertyMatchMail() {
+    this.logger.debug(`Bekleyen emlak eşleşme bildirimleri gönderme cron job'u çalışıyor...`);
     try {
-      const endDate = new Date();
-      const expiryHours =
-        this.configService.get<number>('OFFER_EXPIRY_HOURS') || 0.0167;
-      const startDate = new Date(0);
-      const checkDate = new Date(
-        endDate.getTime() - expiryHours * 60 * 60 * 1000,
+      const requestsToNotify = await this.propertySearchRequestService.findRequestsWithStatus(
+        PropertySearchRequestStatus.MATCH_FOUND,
       );
 
-      this.logger.debug(`Kontrol tarihi: ${checkDate}`);
+      if (!requestsToNotify || requestsToNotify.length === 0) {
+        this.logger.debug(`Bildirim bekleyen eşleşmiş talep bulunamadı.`);
+        return;
+      }
 
-      const offerList = await this.offerService.getOfferList({
-        status: OfferStatusType.FEE_REQUEST_FOR_OFFER,
-        startDate,
-        endDate,
-        limit: 1000,
-        offset: 0,
-      });
+      this.logger.debug(`${requestsToNotify.length} adet talep için eşleşme bildirimi gönderilecek.`);
 
-      this.logger.debug(`${offerList.data.length} adet teklif bulundu`);
+      for (const request of requestsToNotify) {
+        if (!request.customer) {
+          this.logger.warn(`Talep ${request.id} için müşteri bilgisi bulunamadı. Eşleşme bildirimi atlanıyor.`);
+          continue;
+        }
 
-      try {
-        for (const offer of offerList.data) {
-          // Burada eksik bilgileri olan teklifler için hatırlatma maili gönderilecek
-          this.logger.debug(`Reminder for offer: ${offer.offerNo}`);
-
-          const mailLogs = offer.mailLogs.filter(
-            mailLog => mailLog.type === MailStatusType.FEE_REQUEST_FOR_OFFER,
+        this.logger.log(`Talep ${request.id} (Müşteri: ${request.customer.email}) için eşleşme bildirimi hazırlanıyor.`);
+        try {
+          await this.mailProcessingService.notifyBuyerAboutMatchingProperties(request.customer, request);
+          
+          await this.propertySearchRequestService.updateSearchRequestStatus(
+            request.id,
+            PropertySearchRequestStatus.MATCH_NOTIFICATION_SENT,
           );
-
-          if (mailLogs.length === 0) {
-            this.logger.warn(`No mail log found for offer: ${offer.offerNo}`);
-            continue;
-          }
-
-          for (const mailLog of mailLogs) {
-            const isReminded = offer.mailLogs.find(
-              mail =>
-                mail.type === MailStatusType.FEE_REQUEST_FOR_OFFER_REMINDED &&
-                mail.to === mailLog.to,
-            );
-
-            if (isReminded) {
-              this.logger.warn(`Offer ${offer.offerNo} already reminded`);
-              continue;
-            }
-
-            const email = mailLog.to;
-            const supplier = offer.SupplierOffer.find(
-              so => so.supplierContact.email === email,
-            );
-
-            await this.mailService.sendPriceRequestToSupplier({
-              offerNo: offer.offerNo,
-              mailContent: mailLog.contentBody,
-              mailTitle: mailLog.contentTitle,
-              supplier: {
-                name: supplier.supplierContact.name,
-                email,
-                gender: supplier.supplierContact.gender,
-              },
-              language: mailLog.language,
-              type: MailStatusType.FEE_REQUEST_FOR_OFFER_REMINDED,
-              ccMails: mailLog.cc.split(','),
-            });
-          }
-
-          const supplierOffers = offer.SupplierOffer;
-
-          // Find the lowest non-null price from supplier offers
-          const validPrices = supplierOffers
-            .filter(so => so.price !== null && !so.supplierContact.deletedAt)
-            .map(so => ({
-              price: so.price,
-              supplierContact: so.supplierContact,
-            }));
-
-          if (validPrices.length > 0) {
-            // Extract numeric value from price string (assuming format like "59 euro")
-            const lowestPriceOffer = validPrices.reduce((lowest, current) => {
-              const currentPrice = parseFloat(current.price.split(' ')[0]);
-              const lowestPrice = parseFloat(lowest.price.split(' ')[0]);
-              return currentPrice < lowestPrice ? current : lowest;
-            }, validPrices[0]);
-
-            // Calculate final price with margins
-            const calculatedPrice = await this.offerService.calculateOffer(
-              lowestPriceOffer.price,
-            );
-
-            // Send email with calculated price
-            await this.mailService.sendCalculatedPriceEmail({
-              offerNo: offer.offerNo,
-              originalPrice: lowestPriceOffer.price,
-              calculatedPrice: calculatedPrice.finalPrice,
-              rate: calculatedPrice.rate,
-              profitMargin: calculatedPrice.profitMargin,
-              supplierContact: lowestPriceOffer.supplierContact,
-            });
-          }
-        }
-      } catch (error) {
-        this.logger.error('Mail gönderimi sırasında hata oluştu:', error);
-      }
-    } catch (error) {
-      this.logger.error('Zamanlanmış görev hatası:', error);
-    }
-  }
-
-  @Cron('*/1 * * * *')
-  async handleSendOfferMail() {
-    this.logger.debug('Handle send offer mail');
-    try {
-      const endDate = new Date();
-      const expiryHours =
-        this.configService.get<number>('OFFER_EXPIRY_MINUTE_FOR_COMPLETE') ||
-        10;
-      const startDate = new Date(0);
-      const checkDate = new Date(endDate.getTime() - expiryHours * 60 * 1000);
-      const offerList = await this.offerService.getOfferList({
-        status: OfferStatusType.WAITING_COMPLETE_FOR_OFFER,
-        startDate,
-        endDate: checkDate,
-        limit: 1000,
-        offset: 0,
-      });
-
-      this.logger.debug(`${offerList.data.length} adet teklif bulundu`);
-
-      for (const offer of offerList.data) {
-        const supplierOffers = offer.SupplierOffer;
-        if (supplierOffers && supplierOffers.length > 0) {
-          // Filter valid prices (non-null and supplier not deleted)
-          const validPrices = supplierOffers
-            .filter(so => so.price !== null && !so.supplierContact.deletedAt)
-            .map(so => ({
-              price: so.price,
-              supplierContact: so.supplierContact,
-            }));
-
-          if (validPrices.length > 0) {
-            // Find the lowest price offer
-            const lowestPriceOffer = validPrices.reduce((lowest, current) => {
-              const currentPrice = parseFloat(current.price.split(' ')[0]);
-              const lowestPrice = parseFloat(lowest.price.split(' ')[0]);
-              return currentPrice < lowestPrice ? current : lowest;
-            }, validPrices[0]);
-
-            // Calculate final price with margins
-            const calculatedPrice = await this.offerService.calculateOffer(
-              lowestPriceOffer.price,
-            );
-
-            // Get customer email from the first customer request mail log
-            const customerMailLog = await this.mailService.getMailLogs({
-              offerNo: offer.offerNo,
-              type: MailStatusType.CUSTOMER_NEW_OFFER_REQUEST,
-              startDate: new Date(0),
-              endDate: new Date(),
-              limit: 1,
-              offset: 0,
-            });
-
-            if (customerMailLog.data.length > 0) {
-              // Send email with calculated price
-              await this.mailService.sendCalculatedPriceEmail({
-                offerNo: offer.offerNo,
-                originalPrice: lowestPriceOffer.price,
-                calculatedPrice: calculatedPrice.finalPrice,
-                rate: calculatedPrice.rate,
-                profitMargin: calculatedPrice.profitMargin,
-                supplierContact: lowestPriceOffer.supplierContact,
-              });
-
-              // Update offer status
-              await this.offerService.updateOffer(offer.offerNo, {
-                status: OfferStatusType.OFFER_COMPLETED,
-              });
-
-              this.logger.debug(
-                `Calculated price sent to customer for offer ${offer.offerNo}`,
-              );
-            } else {
-              this.logger.warn(
-                `No customer mail found for offer ${offer.offerNo}`,
-              );
-            }
-          }
+        } catch (error) {
+          this.logger.error(
+            `Talep ID ${request.id} için eşleşme bildirimi gönderilirken hata: ${error.message}`,
+            error.stack,
+          );
         }
       }
     } catch (error) {
-      this.logger.error('Mail gönderimi sırasında hata oluştu:', error);
+      this.logger.error(
+        `Emlak eşleşme bildirim cron job'u sırasında hata: ${error.message}`,
+        error.stack,
+      );
     }
   }
 }

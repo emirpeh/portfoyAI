@@ -17,7 +17,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../auth/guards/role.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role } from '../auth/enums/role.enum';
 import { CustomerService } from '../customer/customer.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -37,18 +37,18 @@ export class UserController {
       userData.email,
       userData.password,
       userData.role,
+      userData.name,
     );
 
     if (user.role === Role.CUSTOMER) {
       const customer = await this.customerService.createCustomerAuth(
-        user.id,
+        String(user.id),
         externalId,
       );
       return {
         ...user,
         customer: {
           id: customer.id,
-          externalId: customer.externalId,
         },
       };
     }

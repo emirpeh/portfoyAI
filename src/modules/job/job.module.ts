@@ -3,23 +3,23 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 
 import { PrismaModule } from '../prisma/prisma.module';
-import { DatabaseModule } from '../database/database.module';
 import { JobService } from './job.service';
-import { PositionModule } from '../position/position.module';
 import { MailModule } from '../mail/mail.module';
 import { CustomerModule } from '../customer/customer.module';
-import { OfferModule } from '../offer/offer.module';
+import { PropertySearchRequestModule } from '../property-search-request/property-search-request.module';
+import { RealEstateModule } from '../real-estate/real-estate.module';
+import { GptModule } from '../gpt/gpt.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    PrismaModule,
-    DatabaseModule,
-    PositionModule,
-    CustomerModule,
-    MailModule,
-    OfferModule,
     ConfigModule,
+    PrismaModule,
+    CustomerModule,
+    RealEstateModule,
+    PropertySearchRequestModule,
+    GptModule,
+    MailModule,
   ],
   providers: [JobService],
   exports: [JobService],

@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Node.js, JavaScript ve TypeScript  
+Node.js, JavaScript, NestJS ve TypeScript konularında uzman bir kıdemli geliştiricisin.  
+Düşünceli, detaylı ve doğru yanıtlar veriyorsun. Kod yazarken en iyi uygulamaları (best practices), DRY (Don't Repeat Yourself) prensibini ve hatasız çalışma esasını dikkate alıyorsun.
+
+# Proje içeriği 
+-Amaç: Bir emlakçını kullanacağı sistemde alıcı ve satıcıyı buluşturan, e-posta temelli bir otomasyon sistemi geliştirmek.
+-Ana unsurlar:
+    -Alıcılar ve satıcılar olacak.
+    -Admin kullanıcısından manuel veri girilebilecek. (Alıcının almak istediği mülk ve bilgileri veya satıcının satmak istediği mülk ve bilgileri)
+    -E-postayla gelen talepleri işleyen bir AI, kişinin alıcı mı satıcı mı olduğunu anlayacak:
+        -Alıcıysa: Ev mi, arsa mı, nereden almak istediği ve bütçesi.
+        -Satıcıysa: Satmak istediği yerin bilgileri.
+        -AI bu verileri sistemde kategorize edecek.
+        -Alıcıya uygun portföyler filtrelenip e-posta ile gönderilecek.
+        -Alıcı bir portföyü beğenirse sistemde "talep" olarak işaretlenecek.
+    -Bütün bu alıcı ve satıcı ile ilgili işlemler bir dashboard'da görüntülenebilecek.
+    -Bütün bunları şu an ki email-provider projemde ki iş planını değiştirerek emlağa uyarlamak olmalı. Bu projede ki yapıyı kullanarak sadece yapmak istediğim işi değiştireceğim
+
+# Frontend Entegrasyonu
+
+PortföyAI projemin frontend'ini oluşturmak için, mevcutta bulunan `email-provider-app` adlı projeyi baz alacağız.
+
+## Görev:
+- `email-provider-app` projesini **olduğu gibi kopyala** ve bu projeyi `portfoyAI-app` adında **yeni bir frontend projesine dönüştür**.
+- PortföyAI backend projesinde tanımlı endpointlere ve işlevlere göre gerekli componentleri **uyarla, yeniden adlandır veya sadeleştir**.
+- **Kullanılmayan tüm özellikleri ve componentleri kaldır** (örneğin: email-provider'a özel şablonlar, gereksiz e-posta işleme fonksiyonları, vs.).
+- Yeni projede sadece **PortföyAI'nin işlevlerine hizmet edecek arayüzler** bulunsun.

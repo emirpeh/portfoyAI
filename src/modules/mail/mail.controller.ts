@@ -1,98 +1,75 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  Headers,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { GetMail, MailService } from './mail.service';
-import { MailStatusType } from '../offer/types/mail.status.type';
-import { GetTemplateDto } from './dto/get-template.dto';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { MailService } from './mail.service';
+import { MailStatusType } from '../property-search-request/types/mail.status.type';
 
-@Controller('mails')
+@Controller('mail')
 export class MailController {
   constructor(private readonly mailService: MailService) {}
 
-  @Post('process')
-  async processMail(
-    @Body() mail: GetMail,
-    @Headers('x-api-key') apiKey: string,
+  @Post('analyze')
+  async analyzeEmail(
+    @Body() emailData: { content: string; subject: string; from: string }
   ) {
-    if (!apiKey || apiKey !== process.env.API_KEY) {
-      throw new UnauthorizedException('Invalid API key');
-    }
-    this.mailService.processMail(mail);
-    return { message: 'Mail processed' };
-  }
-
-  @Get()
-  async getMailLogs(
-    @Query('customerId') customerId?: number,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('type') type?: MailStatusType,
-    @Query('externalId') externalId?: string,
-    @Query('offerNo') offerNo?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return await this.mailService.getMailLogs({
-      customerId: customerId ? Number(customerId) : undefined,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      type,
-      externalId,
-      offerNo: offerNo ? offerNo : undefined,
-      limit: limit ? Number(limit) : undefined,
-      offset: offset ? Number(offset) : undefined,
-      includeOffer: true,
-      includeCustomer: true,
-      includeSupplierOffer: true,
-    });
+    return await this.mailService.analyzeSimpleEmail(
+      emailData.content,
+      emailData.subject,
+      emailData.from
+    );
   }
 
   @Post('send')
   async sendMail(
-    @Body()
-    body: {
+    @Body() mailData: {
       to: string;
       subject: string;
       content: string;
       cc?: string[];
-      supplierOfferId?: number;
-      supplierContactId?: number;
-      price?: string;
-      note?: string;
-    },
+    }
   ) {
     return await this.mailService.sendMail(
-      body.to,
-      body.subject,
-      body.content,
-      body.cc,
-      body.supplierContactId,
-      body.supplierOfferId,
-      body.price,
-      body.note,
+      mailData.to,
+      mailData.subject,
+      mailData.content,
+      mailData.cc || []
     );
   }
 
-  @Post('templates/request-price')
-  async getRequestPriceTemplate(@Body() body: GetTemplateDto) {
-    return await this.mailService.getEmailTemplate({
-      ...body,
-      type: 'REQUEST_PRICE',
-    });
-  }
+  @Get('logs')
+  async getMailLogs(
+    @Query('startDate') startDateStr: string,
+    @Query('endDate') endDateStr: string,
+    @Query('limit') limitStr: string,
+    @Query('offset') offsetStr: string,
+    @Query('type') typeStr: string,
+    @Query('offerNo') offerNoQueryParam: string,
+    @Query('to') to: string
+  ) {
+    // Varsayılan değerler ve tip dönüşümleri
+    const startDate = startDateStr 
+      ? new Date(startDateStr) 
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Son 30 gün
+    
+    const endDate = endDateStr 
+      ? new Date(endDateStr) 
+      : new Date();
+    
+    const limit = limitStr ? parseInt(limitStr, 10) : 10;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
 
-  @Post('templates/calculated-price')
-  async getCalculatedPriceTemplate(@Body() body: GetTemplateDto) {
-    console.log(body);
-    return await this.mailService.getEmailTemplate({
-      ...body,
-      type: 'CALCULATED_PRICE',
+    // Mail tipi doğrulama
+    let type: MailStatusType | undefined;
+    if (typeStr && Object.values(MailStatusType).includes(typeStr as MailStatusType)) {
+      type = typeStr as MailStatusType;
+    }
+
+    return this.mailService.getMailLogs({
+      startDate,
+      endDate,
+      limit,
+      offset,
+      type,
+      externalId: offerNoQueryParam,
+      to
     });
   }
-}
+} 

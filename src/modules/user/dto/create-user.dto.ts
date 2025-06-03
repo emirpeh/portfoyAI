@@ -5,7 +5,7 @@ import {
   IsEnum,
   IsOptional,
 } from 'class-validator';
-import { Role } from '@prisma/client';
+import { Role } from '../../auth/enums/role.enum';
 
 export class CreateUserDto {
   @IsEmail()
@@ -22,4 +22,8 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   externalId?: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string = 'User'; // name alanı zorunlu
 }

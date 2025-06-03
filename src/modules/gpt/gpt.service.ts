@@ -1,194 +1,239 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { ZodSchema, z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { analyzeEmailPrompt } from './consts/analyze.const';
-import { MailStatusType } from '../offer/types/mail.status.type';
-import { SupplierService } from '../supplier/supplier.service';
+// import OpenAI from 'openai'; // Artık OpenAIService üzerinden kullanılıyor
+import { CreateCompletionDto } from './dto/create-completion.dto';
+import { OpenAIService } from '../openai/openai.service';
+import {
+  RealEstateEmailAnalysisSchema,
+  type RealEstateEmailAnalysis,
+} from './schemas/real-estate-email-analysis.schema';
+import {
+  GENERATE_BUYER_RESPONSE_SYSTEM_PROMPT,
+  GENERATE_LISTING_DESCRIPTION_SYSTEM_PROMPT,
+  GENERATE_SELLER_RESPONSE_SYSTEM_PROMPT, // Ekledik
+  getAnalyzeRealEstateEmailSystemPrompt,
+} from './constants/gpt.constants';
 
-const processOfferMailSchema = z.object({
-  type: z.nativeEnum(MailStatusType).optional(),
-  offerNo: z.string().optional(),
-  from: z.string().email().optional(),
-  contentTitle: z.string().optional(),
-  contentHtml: z.string().optional(),
-  cc: z.array(z.string().email()).optional(),
-  customer: z
-    .object({
-      name: z.string().optional(),
-      email: z.string().email().optional(),
-      gender: z.enum(['MALE', 'FEMALE']).optional(),
-    })
-    .optional(),
-  language: z
-    .enum([
-      'turkish',
-      'english',
-      'croatian',
-      'slovenian',
-      'bosnian',
-      'macedonian',
-    ])
-    .optional(),
-  request: z
-    .object({
-      loadDate: z.date().optional(),
-      loadCountry: z.string().optional(),
-      loadCity: z.string().optional(),
-      packagingType: z.string().optional(),
-      numOfContainers: z.number().optional(),
-      containerType: z.string().optional(),
-      containerDimensions: z.string().optional(),
-      goodsType: z.string().optional(),
-      isStackable: z.enum(['true', 'false']).optional(),
-      deliveryCity: z.string().optional(),
-      deliveryCountry: z.string().optional(),
-      foreignTrade: z.enum(['IM', 'EX', 'TRN', '']).optional(),
-      deliveryDate: z.date().optional(),
-      customs: z.string().optional(),
-      deliveryPostalCode: z.string().optional(),
-      calculatedVolume: z.number().optional(),
-      calculatedLdm: z.number().optional(),
-    })
-    .optional(),
-  offer: z
-    .object({
-      prices: z
-        .array(
-          z.object({
-            price: z.number(),
-            note: z.string().optional(),
-          }),
-        )
-        .optional(),
-    })
-    .optional(),
-  modelResponseTitle: z.string().optional(),
-  modelResponseMail: z.string().optional(),
-  isThereMissingOrIncorrectInformation: z.boolean().optional(),
-  supplierMails: z
-    .object({
-      turkish: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-      english: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-      croatian: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-      slovenian: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-      bosnian: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-      macedonian: z
-        .object({
-          modelResponseTitle: z.string(),
-          modelResponseMail: z.string(),
-        })
-        .optional(),
-    })
-    .optional(),
-});
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
 
 @Injectable()
 export class GptService {
-  private readonly openai: OpenAI;
   private readonly logger = new Logger(GptService.name);
+  private readonly model: string;
 
   constructor(
-    private configService: ConfigService,
-    private supplierService: SupplierService,
+    private readonly openaiService: OpenAIService,
+    private readonly configService: ConfigService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-    });
+    this.model = this.configService.get<string>('OPENAI_MODEL') || 'gpt-4o';
   }
 
-  async generateResponse(
-    prompt: string,
-    role: 'user' | 'assistant' | 'system',
-    model = 'gpt-3.5-turbo',
-    schema: ZodSchema = processOfferMailSchema,
-    brokerList: string[] = [],
-  ): Promise<string> {
-    try {
-      const schemaJson = JSON.stringify(zodToJsonSchema(schema));
-      const systemPrompt = `Please respond in JSON format matching this schema:\n${schemaJson}`;
-      const assistantPrompt = analyzeEmailPrompt(brokerList);
+  async analyzeRealEstateEmail(
+    content: string,
+    from: string,
+    subject: string,
+  ): Promise<RealEstateEmailAnalysis | null> { // Dönüş tipini güncelledik
+    this.logger.log(`E-posta analizi başlatılıyor: ${subject}`);
 
-      const completion = await this.openai.chat.completions.create({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'assistant', content: assistantPrompt },
-          { role, content: prompt },
-        ],
-        model,
-        temperature: 0.75,
-        response_format: { type: 'json_object' },
+    const systemPrompt = getAnalyzeRealEstateEmailSystemPrompt();
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: `
+        E-posta Adresi: ${from}
+        E-posta Konusu: ${subject}
+        E-posta İçeriği:
+        ${content}
+        `,
+      },
+    ];
+
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: this.model,
+        messages,
+        temperature: 0.2, // Daha tutarlı JSON için temperature düşürülebilir
+        // response_format: { type: 'json_object' }, // GPT-4 Turbo ve sonrası için kullanılabilir
       });
 
-      return completion.choices[0].message.content || '';
-    } catch (error) {
-      this.logger.error(`GPT API Error: ${error.message}`);
-      throw error;
-    }
-  }
+      const responseContent = completion.choices[0]?.message?.content || '';
+      this.logger.debug(`OpenAI Raw Response: ${responseContent}`);
 
-  async generateEmailResponse(
-    context: {
-      originalEmail: string;
-      customerName: string;
-      offerDetails?: any;
-      language?: string;
-    },
-    type: 'inquiry' | 'followup' | 'confirmation' | 'rejection',
-  ): Promise<string> {
-    try {
-      const prompt = `
-        Generate a professional email response in ${context.language || 'English'} for the following scenario:
-        Type: ${type}
-        Customer: ${context.customerName}
-        Original Email: ${context.originalEmail}
-        ${context.offerDetails ? `Offer Details: ${JSON.stringify(context.offerDetails)}` : ''}
+      // Yanıttan JSON bloğunu çıkarmaya çalışalım (eğer ```json ... ``` formatında ise)
+      let jsonStr = responseContent;
+      const jsonBlockMatch = responseContent.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonBlockMatch && jsonBlockMatch[1]) {
+        jsonStr = jsonBlockMatch[1];
+      }
 
-        The response should be:
-        1. Professional and courteous
-        2. Address the specific points in the original email
-        3. Include relevant offer details if provided
-        4. End with an appropriate call to action
-      `;
-
-      const brokerList = await this.supplierService.getAllCustoms();
-
-      return await this.generateResponse(
-        prompt,
-        'user',
-        'gpt-3.5-turbo',
-        undefined,
-        brokerList as unknown as string[],
+      const parsedResponse = RealEstateEmailAnalysisSchema.safeParse(
+        JSON.parse(jsonStr), // Önce string'i JSON objesine parse et
       );
+
+      if (parsedResponse.success) {
+        this.logger.log('E-posta analiz sonucu başarıyla doğrulandı ve alındı');
+        return parsedResponse.data;
+      } else {
+        this.logger.error(
+          `JSON Zod doğrulama hatası: ${parsedResponse.error.errors.map(e => e.message).join(', ')}`,
+        );
+        this.logger.debug(`Doğrulanamayan JSON string: ${jsonStr}`);
+        // Hata durumunda bile bir şeyler döndürmeye çalışabiliriz veya null dönebiliriz.
+        // Şimdilik null dönelim, çağıran servis bu durumu ele almalı.
+        return null; 
+      }
     } catch (error) {
-      this.logger.error(`Email generation error: ${error.message}`);
-      throw error;
+      this.logger.error(`E-posta analiz hatası: ${error.message}`, error.stack);
+      // throw new Error(`E-posta analiz edilirken bir hata oluştu: ${error.message}`);
+      return null; // Hata durumunda null dön
     }
   }
+
+  async generateListingDescription(propertyInfo: any): Promise<string> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: GENERATE_LISTING_DESCRIPTION_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `Bu gayrimenkul için çekici bir ilan açıklaması yazar mısın?
+        
+        Bilgiler:
+        ${JSON.stringify(propertyInfo, null, 2)}`,
+      },
+    ];
+
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: this.model,
+        messages,
+        temperature: 0.7,
+      });
+
+      return completion.choices[0]?.message?.content || '';
+    } catch (error) {
+      this.logger.error(
+        `İlan açıklaması oluşturma hatası: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(
+        `İlan açıklaması oluşturulurken bir hata oluştu: ${error.message}`,
+      );
+    }
+  }
+
+  async generateBuyerResponse(
+    buyerInfo: any, // Tipini belirlemek daha iyi olur (Örn: Customer veya BuyerPreference)
+    matchingProperties: any[], // Tipini belirlemek daha iyi olur (Örn: RealEstateListing[])
+  ): Promise<string> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: GENERATE_BUYER_RESPONSE_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `
+        Alıcı Bilgileri:
+        ${JSON.stringify(buyerInfo, null, 2)}
+        
+        Eşleşen Gayrimenkuller:
+        ${JSON.stringify(matchingProperties, null, 2)}
+        
+        Lütfen bu alıcıya gönderilecek profesyonel bir e-posta yanıtı hazırla.`,
+      },
+    ];
+
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: this.model,
+        messages,
+        temperature: 0.7,
+      });
+
+      return completion.choices[0]?.message?.content || '';
+    } catch (error) {
+      this.logger.error(
+        `Alıcı yanıtı oluşturma hatası: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(
+        `Alıcı yanıtı oluşturulurken bir hata oluştu: ${error.message}`,
+      );
+    }
+  }
+
+  async generateSellerResponse(
+    sellerInfo: any, // Tipini belirlemek daha iyi olur (Örn: Customer)
+    propertyInfo: any, // Tipini belirlemek daha iyi olur (Örn: RealEstateListing)
+    listingId: string | null, // listeleme ID si varsa
+  ): Promise<string> {
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: GENERATE_SELLER_RESPONSE_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `
+        Satıcı Bilgileri:
+        ${JSON.stringify(sellerInfo, null, 2)}
+        
+        Mülk Bilgileri:
+        ${JSON.stringify(propertyInfo, null, 2)}
+        ${listingId ? `\nİlan Numarası: ${listingId}` : ''}
+        
+        Lütfen bu satıcıya gönderilecek profesyonel bir e-posta yanıtı hazırla.`,
+      },
+    ];
+
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: this.model,
+        messages,
+        temperature: 0.7,
+      });
+
+      return completion.choices[0]?.message?.content || '';
+    } catch (error) {
+      this.logger.error(
+        `Satıcı yanıtı oluşturma hatası: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(
+        `Satıcı yanıtı oluşturulurken bir hata oluştu: ${error.message}`,
+      );
+    }
+  }
+
+  // Bu fonksiyon daha genel amaçlıydı, şimdilik yorum satırına alabiliriz veya kaldırabiliriz.
+  // Eğer spesifik bir DTO ile kullanılmayacaksa, doğrudan openaiService.createChatCompletion çağrılabilir.
+  /*
+  async createCompletion(createCompletionDto: CreateCompletionDto): Promise<any> {
+    this.logger.log(
+      `Tamamlama isteği alindi: ${JSON.stringify(createCompletionDto)}`,
+    );
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: createCompletionDto.model || this.model,
+        messages: createCompletionDto.messages,
+        temperature: createCompletionDto.temperature || 0.7,
+        max_tokens: createCompletionDto.max_tokens || 1500,
+      });
+      return completion.choices[0]?.message?.content;
+    } catch (error) {
+      this.logger.error(`Tamamlama hatasi: ${error.message}`, error.stack);
+      throw new Error(`OpenAI tamamlama basarisiz oldu: ${error.message}`);
+    }
+  }
+  */
 }

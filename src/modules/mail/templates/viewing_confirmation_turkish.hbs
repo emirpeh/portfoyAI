@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Görüntüleme Randevunuz Onaylandı | Portföy AI</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #2A60FF;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+    }
+    .header img {
+      max-width: 150px;
+    }
+    .content {
+      padding: 20px;
+      background-color: #F5F6FA;
+    }
+    .confirmation-box {
+      background-color: #30C98E;
+      color: white;
+      padding: 15px;
+      border-radius: 5px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .date-time {
+      font-size: 1.3em;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    .property-details {
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .property-details h3 {
+      color: #2A60FF;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    .property-info {
+      margin-top: 15px;
+    }
+    .property-info p {
+      margin: 5px 0;
+    }
+    .property-info strong {
+      color: #2A60FF;
+    }
+    .map-placeholder {
+      width: 100%;
+      height: 200px;
+      background-color: #eee;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+      color: #777;
+    }
+    .reminder-list {
+      background-color: #f0f7ff;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 20px;
+    }
+    .reminder-list h3 {
+      color: #2A60FF;
+      margin-top: 0;
+    }
+    .reminder-list ul {
+      padding-left: 20px;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #666;
+    }
+    .footer a {
+      color: #2A60FF;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="{{companyLogo}}" alt="{{companyName}} Logo">
+      <h1>Görüntüleme Randevunuz Onaylandı</h1>
+    </div>
+    
+    <div class="content">
+      <p>Sayın {{buyerName}},</p>
+      
+      <div class="confirmation-box">
+        <p>Gayrimenkul görüntüleme talebiniz onaylanmıştır.</p>
+        <div class="date-time">{{viewingDate}}</div>
+      </div>
+      
+      <p>Randevu saatinde gayrimenkulü görüntülemek için sizinle birlikte olacağız. Aşağıda gayrimenkul bilgileri ve randevu detayları bulunmaktadır.</p>
+      
+      <div class="property-details">
+        <h3>Gayrimenkul Bilgileri</h3>
+        
+        <div class="property-info">
+          <p><strong>İlan No:</strong> {{property.listingNo}}</p>
+          <p><strong>Gayrimenkul Tipi:</strong> {{property.propertyType}}</p>
+          <p><strong>Adres:</strong> {{property.location}}, {{property.city}}{{#if property.district}}, {{property.district}}{{/if}}{{#if property.neighborhood}}, {{property.neighborhood}}{{/if}}</p>
+          <p><strong>Fiyat:</strong> {{property.price}} {{property.currency}}</p>
+        </div>
+      </div>
+      
+      <div class="map-placeholder">
+        Harita bilgisi için bizimle iletişime geçiniz
+      </div>
+      
+      <div class="reminder-list">
+        <h3>Görüntüleme Öncesi Hatırlatmalar</h3>
+        <ul>
+          <li>Lütfen randevu saatinden 5-10 dakika önce belirtilen adreste olunuz.</li>
+          <li>Yanınızda kimlik belgenizi bulundurunuz.</li>
+          <li>Gayrimenkul hakkında sormak istediğiniz soruların bir listesini hazırlamak faydalı olabilir.</li>
+          <li>Randevuyu iptal etmeniz gerekirse, en az 24 saat öncesinden lütfen bizi bilgilendiriniz.</li>
+        </ul>
+      </div>
+      
+      <p>Herhangi bir sorunuz olursa veya randevu ile ilgili değişiklik yapmak isterseniz, lütfen <a href="mailto:{{contactEmail}}">{{contactEmail}}</a> adresinden veya {{contactPhone}} numaralı telefondan bizimle iletişime geçiniz.</p>
+      
+      <p>Saygılarımızla,<br>
+      {{companyName}} Ekibi</p>
+    </div>
+    
+    <div class="footer">
+      <p>{{companyName}}</p>
+      <p>Telefon: {{contactPhone}} | E-posta: {{contactEmail}}</p>
+      <p>Bu e-posta size özel gönderilmiştir.</p>
+    </div>
+  </div>
+</body>
+</html> 

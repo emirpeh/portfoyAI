@@ -1,85 +1,19 @@
 import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 import { PrismaService } from '../prisma/prisma.service';
-import { generateFileNotificationTemplate } from './templates/file-notification.template';
 import { ConfigService } from '@nestjs/config';
-import { SupportedLanguages } from '../offer/types/supported.languages.type';
-import { createTurkishNoSupplierInfoTemplate } from './templates/languages/turkish/no-supplier.to.maxi-logistics';
-import { createTurkishNoSupplierInfoTitleTemplate } from './templates/languages/turkish/no-supplier.to.maxi-logistics';
-import {
-  createTurkishRequestPriceTitleTemplate,
-  createTurkishRequestPriceTemplate,
-} from './templates/languages/turkish/request.price.from.supplier';
-import {
-  createTurkishCalculatedPriceTitleTemplate,
-  createTurkishCalculatedPriceTemplate,
-} from './templates/languages/turkish/calculated.price.to.maxi-logistics';
-import {
-  createEnglishCalculatedPriceTitleTemplate,
-  createEnglishCalculatedPriceTemplate,
-} from './templates/languages/english/calculated.price.to.maxi-logistics';
-import {
-  createCroatianCalculatedPriceTitleTemplate,
-  createCroatianCalculatedPriceTemplate,
-} from './templates/languages/croatian/calculated.price.to.maxi-logistics';
-import {
-  createBosnianCalculatedPriceTitleTemplate,
-  createBosnianCalculatedPriceTemplate,
-} from './templates/languages/bosnian/calculated.price.to.maxi-logistics';
-import {
-  createMacedonianCalculatedPriceTitleTemplate,
-  createMacedonianCalculatedPriceTemplate,
-} from './templates/languages/macedonian/calculated.price.to.maxi-logistics';
-import {
-  createSlovenianCalculatedPriceTitleTemplate,
-  createSlovenianCalculatedPriceTemplate,
-} from './templates/languages/slovenian/calculated.price.to.maxi-logistics';
-import {
-  createCroatianRequestPriceTitleTemplate,
-  createCroatianRequestPriceTemplate,
-} from './templates/languages/croatian/request.price.from.supplier';
-import {
-  createSlovenianRequestPriceTitleTemplate,
-  createSlovenianRequestPriceTemplate,
-} from './templates/languages/slovenian/request.price.from.supplier';
-import {
-  createBosnianRequestPriceTitleTemplate,
-  createBosnianRequestPriceTemplate,
-} from './templates/languages/bosnian/request.price.from.supplier';
-import {
-  createMacedonianRequestPriceTitleTemplate,
-  createMacedonianRequestPriceTemplate,
-} from './templates/languages/macedonian/request.price.from.supplier';
-import { createEnglishRequestPriceTemplate } from './templates/languages/english/request.price.from.supplier';
-import { createEnglishRequestPriceTitleTemplate } from './templates/languages/english/request.price.from.supplier';
 import { CustomerService } from '../customer/customer.service';
-import { OfferService } from '../offer/offer.service';
-import { SupplierService } from '../supplier/supplier.service';
-import { createTurkishExpiredOfferTemplate } from './templates/languages/turkish/expired.offer.to.maxi-logistics';
-import { createWaitingForPricingTitleTemplate } from './templates/languages/turkish/waiting-for-pricing.to.maxi-logistics';
-import { createWaitingForPricingTemplate } from './templates/languages/turkish/waiting-for-pricing.to.maxi-logistics';
-import { createTurkishLateSupplierOfferTemplate } from './templates/languages/turkish/late.supplier.offer.to.maxi-logistics';
-import { createTurkishLateSupplierOfferTitleTemplate } from './templates/languages/turkish/late.supplier.offer.to.maxi-logistics';
+import { RealEstateService } from '../real-estate/real-estate.service';
 import { GptService } from '../gpt/gpt.service';
-import { OfferStatusType } from '../offer/types/offer.status.type';
-import { MailStatusType } from '../offer/types/mail.status.type';
-
-interface FileWithEmails {
-  id: number;
-  pozNo: string;
-  DosyaAdi: string;
-  customer: string;
-  sender: string;
-  receiver: string;
-  tarih: Date;
-  aciklama: string;
-  firma: string;
-  yol: string;
-  Tip: string;
-  belge: string;
-  ftpyol: string;
-  emails: string[];
-}
+import * as nodemailer from 'nodemailer';
+import * as handlebars from 'handlebars';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Customer, Prisma, RealEstateListing, MailLogs } from '@prisma/client';
+import { MailLogType } from './types/mail-log.type.enum';
+import { PropertySearchRequestService } from '../property-search-request/property-search-request.service';
+import { ProcessParsedPropertyEmailDto } from '../property-search-request/dto/process.property-email.dto';
+import { MailStatusType } from '../property-search-request/types/property-search-request.types';
 
 interface Mail {
   address: string;
@@ -101,23 +35,36 @@ export class MailService {
   private readonly defaultMailList: string[];
   private readonly defaultMail: string;
   private readonly logger: Logger;
+  private mailTransporter: nodemailer.Transporter;
+
   constructor(
     private mailerService: MailerService,
     private prisma: PrismaService,
     private configService: ConfigService,
     private customerService: CustomerService,
-    @Inject(forwardRef(() => OfferService))
-    private offerService: OfferService,
-    private supplierService: SupplierService,
+    @Inject(forwardRef(() => RealEstateService))
+    private readonly realEstateService: RealEstateService,
     private gptService: GptService,
+    private propertySearchRequestService: PropertySearchRequestService,
   ) {
     this.baseUrl =
       this.configService.get<string>('BASE_URL') || 'http://localhost:3000';
     this.defaultMailList =
-      this.configService.get<string>('DEFAULT_MAIL_LIST').split(',') || [];
+      this.configService.get<string>('DEFAULT_MAIL_LIST')?.split(',') || [];
 
     this.defaultMail = this.configService.get<string>('DEFAULT_MAIL');
     this.logger = new Logger(MailService.name);
+
+    // Mail transporter ayarları
+    this.mailTransporter = nodemailer.createTransport({
+      host: this.configService.get('MAIL_HOST'),
+      port: this.configService.get('MAIL_PORT'),
+      secure: this.configService.get('MAIL_SECURE') === 'true',
+      auth: {
+        user: this.configService.get('MAIL_USER'),
+        pass: this.configService.get('MAIL_PASS'),
+      },
+    });
   }
 
   async processMail(mail: GetMail) {
@@ -125,7 +72,7 @@ export class MailService {
       const startDate = new Date();
       startDate.setHours(
         startDate.getHours() -
-          this.configService.get<number>('OFFER_EXPIRY_HOURS_FOR_ALL'),
+          this.configService.get<number>('OFFER_EXPIRY_HOURS_FOR_ALL', 24),
       );
       const getMailLogList = await this.getMailLogs({
         to: mail.from[0].address,
@@ -136,152 +83,147 @@ export class MailService {
       });
 
       const getMailLog = getMailLogList.data[0];
-
-      let offer;
+      let listingDetails: RealEstateListing | null = null;
       if (getMailLog && getMailLog.externalId) {
-        this.logger.log('Mail log found for mail', mail);
-        offer = await this.offerService.findOffer(getMailLog.externalId);
+        this.logger.log('Eski mail logu bulundu, ilgili ilan detayları çekiliyor (varsa):', getMailLog.externalId);
+        listingDetails = await this.prisma.realEstateListing.findUnique({ where: { listingNo: getMailLog.externalId } });
       }
 
-      const userPrompt = `
-        Gelen mail bilgileri:
-        From Email Address: ${JSON.stringify(mail.from, null, 2)}
-        To Email Address: ${JSON.stringify(mail.to, null, 2)}
-        Subject: ${mail.subject}
-        Body: ${JSON.stringify(mail.body, null, 2)}
-        Date: ${mail.date}
-        cc: ${JSON.stringify(mail.cc, null, 2)}
-        Önceki Mail Log: ${JSON.stringify(getMailLog, null, 2)},
-        Offer: ${JSON.stringify(offer, null, 2)}
-      `;
-
-      const response = await this.gptService.generateResponse(
-        userPrompt,
-        'user',
-        'gpt-4o',
+      this.logger.log(`processMail: GptService.analyzeRealEstateEmail çağrılıyor. Subject: ${mail.subject}`);
+      const analysisResult = await this.gptService.analyzeRealEstateEmail(
+        mail.body, 
+        mail.from[0]?.address || 'unknown@example.com', 
+        mail.subject
       );
 
-      const jsonResponse = JSON.parse(response);
+      if (analysisResult) {
+        this.logger.log('GPT analysis successful. Result is being sent to propertySearchRequestService.');
+        
+        const dto: ProcessParsedPropertyEmailDto = {
+          from: mail.from[0]?.address || 'unknown@example.com',
+          to: mail.to.map(t => t.address), 
+          cc: mail.cc?.map(c => c.address) || [],
+          subject: mail.subject,
+          body: mail.body,
+          language: 'tr', 
+          emailType: analysisResult.type as MailLogType, 
+          propertyRequest: null,
+          propertyListing: null,
+          additionalRawData: { 
+            messageId: mail.id, 
+            analysis: analysisResult 
+          } as any, 
+        };
 
-      await this.offerService.processOffer(jsonResponse, offer);
+        if (analysisResult.type === 'BUYER_INQUIRY' && analysisResult.buyerPreferences) {
+          let buyerNotes = analysisResult.buyerPreferences.features?.join(', ') || '';
+          if (analysisResult.buyerPreferences.districts && analysisResult.buyerPreferences.districts.length > 0) {
+            const districtNotes = `Preferred districts: ${analysisResult.buyerPreferences.districts.join(', ')}`;
+            buyerNotes = buyerNotes ? `${buyerNotes}; ${districtNotes}` : districtNotes;
+          }
+          dto.propertyRequest = {
+            notes: buyerNotes,
+            propertyTypes: analysisResult.buyerPreferences.propertyTypes?.join(', ') || '',
+            locations: analysisResult.buyerPreferences.locations?.join(', ') || '',
+            minPrice: analysisResult.buyerPreferences.minPrice ?? undefined,
+            maxPrice: analysisResult.buyerPreferences.maxPrice ?? undefined,
+            minSize: analysisResult.buyerPreferences.minSize ?? undefined,
+            maxSize: analysisResult.buyerPreferences.maxSize ?? undefined,
+            minRooms: analysisResult.buyerPreferences.roomCount ?? undefined, 
+          };
+        } else if (analysisResult.type === 'SELLER_LISTING' && analysisResult.property) {
+          let sellerDescription = analysisResult.property.description || '';
+          const propertyTitle = `İlan: ${analysisResult.property.propertyType} - ${analysisResult.property.location || 'Konumsuz'}`;
+          sellerDescription = `${propertyTitle}\n${sellerDescription}`.trim();
+          // Adres bilgisi zaten location alanında olacak, ayrıca description'a eklemeye gerek yok gibi.
+          // if (analysisResult.property.location) { 
+          //   sellerDescription = `${sellerDescription}\nAdres: ${analysisResult.property.location}`;
+          // }
+
+          dto.propertyListing = {
+            description: sellerDescription, 
+            location: analysisResult.property.location || '', // Zorunlu 'location' alanı eklendi
+            price: analysisResult.property.price ?? undefined,
+            currency: analysisResult.property.currency || 'TRY',
+            propertyType: analysisResult.property.propertyType || 'OTHER',
+            city: analysisResult.property.city || '',
+            district: analysisResult.property.district || '',
+            neighborhood: analysisResult.property.neighborhood || '',
+            size: analysisResult.property.size ?? undefined,
+            roomCount: analysisResult.property.roomCount ?? undefined,
+            bathroomCount: analysisResult.property.bathroomCount ?? undefined,
+          };
+        }
+        
+        await this.propertySearchRequestService.processParsedEmail(dto);
+        this.logger.log('Successfully processed parsed email from processMail via GptService analysis.');
+        await this.createMailLog({
+          type: MailLogType.GPT_ANALYSIS_SUCCESS,
+          from: mail.from[0]?.address || 'unknown@example.com',
+          to: mail.to.map(t => t.address).join(', '),
+          contentTitle: `ANALİZ BAŞARILI: ${mail.subject}`,
+          contentBody: mail.body,
+          parsedData: { analysis: analysisResult, mailId: mail.id } as Prisma.JsonValue,
+        });
+
+      } else {
+        this.logger.error('GPT analizi başarısız oldu veya null sonuç döndürdü.');
+        await this.createMailLog({
+          type: MailLogType.GPT_ANALYSIS_FAILED,
+          from: mail.from[0]?.address || 'unknown@example.com',
+          to: mail.to.map(t => t.address).join(', '),
+          cc: mail.cc?.map(c => c.address).join(', '),
+          contentTitle: `ANALİZ HATASI: ${mail.subject}`,
+          contentBody: mail.body,
+          parsedData: { error: 'GPT analysis returned null or failed.', mailId: mail.id } as Prisma.JsonValue,
+        });
+      }
     } catch (error) {
-      this.logger.error(`Email analysis error: ${error.message}`);
-      throw error;
-    }
-  }
-
-  async sendFileNotification(files: FileWithEmails[]) {
-    for (const file of files) {
-      const htmlContent = generateFileNotificationTemplate({
-        file,
-        baseUrl: this.baseUrl,
+      this.logger.error(`Email analysis error in processMail: ${error.message}`, error.stack);
+      await this.createMailLog({
+        type: MailLogType.ERROR_PROCESSING_MAIL,
+        from: mail.from[0]?.address || 'unknown@example.com',
+        to: mail.to.map(t => t.address).join(', '),
+        cc: mail.cc?.map(c => c.address).join(', '),
+        contentTitle: `İŞLEME HATASI: ${mail.subject}`,
+        contentBody: mail.body,
+        parsedData: { error: error.message, mailId: mail.id, stack: error.stack } as Prisma.JsonValue,
       });
-
-      if (!file.emails || file.emails.length === 0) {
-        console.warn(
-          `No valid email addresses found for file: ${file.DosyaAdi} (${file.pozNo})`,
-        );
-        continue;
-      }
-
-      for (const email of file.emails) {
-        // E-posta adresinin geçerli olduğunu kontrol et
-        if (!email || typeof email !== 'string' || email.trim() === '') {
-          console.warn(
-            `Invalid email address: ${email} for file: ${file.DosyaAdi}`,
-          );
-          continue;
-        }
-
-        try {
-          const title = `Yeni Dosya Bildirimi / New File Notification ${file.sender} - ${file.receiver}`;
-          await this.mailerService.sendMail({
-            to: email,
-            subject: title,
-            html: htmlContent,
-          });
-          const customerContact =
-            await this.customerService.getCustomerContact(email);
-          await this.createMailLog({
-            type: MailStatusType.FILE_NOTIFICATION,
-            externalId: file.id.toString(),
-            from: this.defaultMail,
-            to: email,
-            cc: [],
-            contentTitle: title,
-            contentBody: htmlContent,
-            supplierOfferId: file.id,
-            customerMailListId: customerContact?.id,
-            supplierContactId: customerContact?.id,
-            language: 'turkish',
-          });
-          console.log(
-            `Mail successfully sent to ${email} for file: ${file.DosyaAdi}`,
-          );
-        } catch (error) {
-          console.error(`Mail gönderimi başarısız - ${email}:`, error);
-        }
-      }
     }
   }
 
-  async createMailLog({
-    type,
-    externalId,
-    from,
-    to,
-    cc,
-    contentTitle,
-    contentBody,
-    supplierOfferId,
-    customerMailListId,
-    supplierContactId,
-    offerId,
-    language,
-  }: {
-    type: MailStatusType;
-    externalId: string;
+  async createMailLog(data: {
+    type: MailLogType | string;
+    externalId?: string;
     from: string;
     to: string;
-    cc: string[];
-    contentTitle: string;
-    contentBody: string;
-    supplierOfferId?: number;
-    customerMailListId?: number;
-    supplierContactId?: number;
-    offerId?: number;
+    cc?: string | string[];
+    contentTitle?: string;
+    contentBody?: string;
+    searchRequestId?: number;
+    parsedData?: Prisma.JsonValue;
     language?: string;
   }) {
-    const data: any = {
-      externalId,
-      type,
-      from,
-      to,
-      cc: cc.join(','),
-      contentTitle,
-      contentBody,
-      language,
-    };
-
-    if (customerMailListId) {
-      data.customerMailListId = customerMailListId;
+    const ccString = Array.isArray(data.cc) ? data.cc.join(', ') : data.cc;
+    try {
+      return await this.prisma.mailLogs.create({
+        data: {
+          type: data.type.toString(),
+          externalId: data.externalId,
+          from: data.from,
+          to: data.to,
+          cc: ccString,
+          contentTitle: data.contentTitle,
+          contentBody: data.contentBody,
+          language: data.language,
+          parsedData: data.parsedData,
+          propertySearchRequest: data.searchRequestId ? { connect: { id: data.searchRequestId } } : undefined,
+        },
+      });
+    } catch (error) {
+        this.logger.error(`Error creating mail log: ${error.message}`, { data, errorStack: error.stack });
+        throw error;
     }
-
-    if (supplierOfferId) {
-      data.supplierOfferId = supplierOfferId;
-    }
-
-    if (supplierContactId) {
-      data.supplierContactId = supplierContactId;
-    }
-
-    if (offerId) {
-      data.offerId = offerId;
-    }
-
-    return await this.prisma.mailLogs.create({
-      data,
-    });
   }
 
   async getMailLogs({
@@ -289,58 +231,62 @@ export class MailService {
     startDate,
     endDate,
     type,
-    offerNo,
     limit,
     offset,
     to,
-    includeSupplierOffer,
-    includeOffer,
     includeCustomer,
+    searchRequestId,
+    externalId,
   }: {
     customerId?: number;
-    startDate: Date;
-    endDate: Date;
-    type?: MailStatusType;
+    startDate?: Date;
+    endDate?: Date;
+    type?: MailLogType | string;
     externalId?: string;
-    offerNo?: string;
     limit: number;
     offset: number;
     to?: string;
-    includeSupplierOffer?: boolean;
-    includeOffer?: boolean;
     includeCustomer?: boolean;
+    searchRequestId?: number;
   }) {
-    const where = {
+    const where: Prisma.MailLogsWhereInput = {
       createdAt: {
-        ...(startDate && { gte: startDate }),
-        ...(endDate && { lte: endDate }),
+        gte: startDate,
+        lte: endDate,
       },
-      deletedAt: null,
-      ...(customerId && { customerMailListId: customerId }),
-      ...(type && { type }),
-      ...(offerNo && { externalId: { contains: offerNo } }),
+      ...(type && { type: type.toString() }),
       ...(to && { to }),
+      ...(externalId && { externalId }),
+      ...(searchRequestId && { searchRequestId }),
     };
 
-    const [total, data] = await Promise.all([
+    const [total, data] = await this.prisma.$transaction([
       this.prisma.mailLogs.count({ where }),
       this.prisma.mailLogs.findMany({
         where,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          ...(includeSupplierOffer && { supplierOffer: true }),
-          ...(includeOffer && { offer: true }),
-          ...(includeCustomer && { customerMailList: true }),
-        },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
+        include: {
+          propertySearchRequest: {
+            include: {
+                customer: includeCustomer
+            }
+          }
+        },
       }),
     ]);
 
+    const resultData = data.map(log => {
+        const logWithCustomer: any = { ...log };
+        if (includeCustomer && log.propertySearchRequest && log.propertySearchRequest.customer) {
+            logWithCustomer.customer = log.propertySearchRequest.customer;
+        }
+        return logWithCustomer;
+    });
+
     return {
-      data,
+      data: resultData,
       pagination: {
         total,
         limit,
@@ -350,335 +296,7 @@ export class MailService {
   }
 
   getMailTypes() {
-    return [...Object.values(MailStatusType)];
-  }
-
-  async sendMissingOfferMail({
-    offerNo,
-    content,
-    contentTitle,
-    contact,
-    logType,
-    ccMails,
-    language,
-  }: {
-    offerNo: string;
-    content: string;
-    contentTitle: string;
-    contact: {
-      name: string;
-      email: string;
-      gender: string;
-    };
-    logType: MailStatusType;
-    ccMails?: string[];
-    language?: string;
-  }) {
-    try {
-      const mailOptions = {
-        to: contact.email,
-        cc: ccMails || [],
-      };
-
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: contentTitle,
-        html: content,
-      });
-
-      const supplierContact = await this.supplierService.findByEmail(
-        contact.email,
-      );
-
-      const offer = await this.offerService.findOffer(offerNo);
-
-      await this.createMailLog({
-        type: logType,
-        externalId: offerNo,
-        from: this.defaultMail,
-        to: contact.email,
-        cc: ccMails || [],
-        contentTitle: contentTitle,
-        contentBody: content,
-        offerId: offer.id,
-        supplierContactId: supplierContact?.id,
-        language: language || 'turkish',
-      });
-    } catch (error) {
-      console.error(`Mail gönderimi başarısız - ${contact.email}:`, error);
-    }
-  }
-
-  async sendNoSupplierMail(
-    offerNo: string,
-    customerMail: string,
-    questions: object,
-  ) {
-    try {
-      const mailOptions = {
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-      };
-      const title = createTurkishNoSupplierInfoTitleTemplate(offerNo);
-      const htmlContent = createTurkishNoSupplierInfoTemplate({
-        baseUrl: this.baseUrl,
-        offerNo,
-        customerMail,
-        questions,
-      });
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: title,
-        html: htmlContent,
-      });
-
-      const offer = await this.offerService.findOffer(offerNo);
-
-      await this.createMailLog({
-        type: MailStatusType.CUSTOMER_REQUEST_CORRECTION,
-        externalId: offerNo,
-        from: this.defaultMail,
-        to: customerMail,
-        cc: this.defaultMailList,
-        contentTitle: title,
-        contentBody: htmlContent,
-        offerId: offer.id,
-        language: 'turkish',
-      });
-    } catch (error) {
-      console.error(`Mail gönderimi başarısız - ${customerMail}:`, error);
-    }
-  }
-
-  async sendPriceRequestToSupplier({
-    offerNo,
-    mailContent,
-    mailTitle,
-    supplier,
-    language,
-    type,
-    ccMails,
-  }: {
-    offerNo: string;
-    mailContent: string;
-    mailTitle: string;
-    supplier: {
-      name: string;
-      email: string;
-      gender: string;
-    };
-    language: string;
-    type: MailStatusType;
-    ccMails?: string[];
-  }) {
-    try {
-      const mailOptions = {
-        to: supplier.email,
-        cc: ccMails || [],
-      };
-
-      // Find or create supplier contact
-      let supplierContact = await this.supplierService.findByEmail(
-        supplier.email,
-      );
-      if (!supplierContact) {
-        supplierContact = await this.prisma.supplierContactList.create({
-          data: {
-            name: supplier.name,
-            email: supplier.email,
-            gender: supplier.gender,
-            companyName: '', // You might want to add this to the supplier parameter
-            countries: '', // You might want to add this to the supplier parameter
-            foreignTrades: '', // You might want to add this to the supplier parameter
-            language: language,
-          },
-        });
-      }
-
-      // Find the offer
-      const offer = await this.offerService.findOffer(offerNo);
-      if (!offer) {
-        throw new Error(`Offer ${offerNo} not found`);
-      }
-
-      // Find or create supplier offer
-      let supplierOffer = await this.prisma.supplierOffer.findFirst({
-        where: {
-          offerId: offer.id,
-          supplierContactId: supplierContact.id,
-          deletedAt: null,
-        },
-      });
-
-      if (!supplierOffer) {
-        supplierOffer = await this.prisma.supplierOffer.create({
-          data: {
-            offerId: offer.id,
-            supplierContactId: supplierContact.id,
-          },
-        });
-      }
-
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: mailTitle,
-        html: mailContent,
-      });
-
-      await this.createMailLog({
-        type,
-        externalId: offerNo,
-        from: this.defaultMail,
-        to: supplier.email,
-        cc: ccMails || [],
-        contentTitle: mailTitle,
-        contentBody: mailContent,
-        supplierOfferId: supplierOffer.id,
-        supplierContactId: supplierContact.id,
-        offerId: offer.id,
-        language: language || 'turkish',
-      });
-    } catch (error) {
-      console.error(
-        `Fiyat teklifi maili gönderimi başarısız - ${supplier.email}:`,
-        error,
-      );
-    }
-  }
-
-  async sendWaitingForPricingMail(offerNo: string, offerExpiryHours: number) {
-    try {
-      const mailOptions = {
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-      };
-
-      const title = createWaitingForPricingTitleTemplate(offerNo);
-      const htmlContent = createWaitingForPricingTemplate({
-        baseUrl: this.baseUrl,
-        offerNo,
-        offerExpiryHours,
-      });
-
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: title,
-        html: htmlContent,
-      });
-
-      const offer = await this.offerService.findOffer(offerNo);
-
-      await this.createMailLog({
-        type: MailStatusType.INTERNAL_INFORMATION,
-        externalId: offer.id.toString(),
-        from: this.defaultMail,
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-        contentTitle: title,
-        contentBody: htmlContent,
-        offerId: offer.id,
-        language: 'turkish',
-      });
-    } catch (error) {
-      console.error(
-        `Waiting for pricing maili gönderimi başarısız - ${this.defaultMail}:`,
-        error,
-      );
-    }
-  }
-
-  async sendExpiredOfferMail(
-    offerNo: string,
-    contact: {
-      name: string;
-      email: string;
-      gender: string;
-    },
-    hours: number,
-  ) {
-    try {
-      const mailOptions = {
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-      };
-
-      const title = `${hours} Saat Geçti - Teklif Düzeltme / ${hours} Hours Passed - Offer Correction ${offerNo}`;
-      const htmlContent = createTurkishExpiredOfferTemplate({
-        baseUrl: this.baseUrl,
-        offerNo,
-      });
-
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: title,
-        html: htmlContent,
-      });
-
-      const offer = await this.offerService.findOffer(offerNo);
-
-      await this.createMailLog({
-        type: MailStatusType.INTERNAL_INFORMATION,
-        externalId: offerNo,
-        from: this.defaultMail,
-        to: contact.email,
-        cc: this.defaultMailList,
-        contentTitle: title,
-        contentBody: htmlContent,
-        offerId: offer.id,
-        language: 'turkish',
-      });
-    } catch (error) {
-      console.error(`An error occurred while sending internal mail:`, error);
-    }
-  }
-
-  async sendLateSupplierOfferMail(
-    offerNo: string,
-    supplierInfo: {
-      from: string;
-      contentTitle: string;
-      contentHtml: string;
-    },
-    hours: number,
-  ) {
-    try {
-      const mailOptions = {
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-      };
-
-      const title = createTurkishLateSupplierOfferTitleTemplate(offerNo, hours);
-      const htmlContent = createTurkishLateSupplierOfferTemplate({
-        baseUrl: this.baseUrl,
-        offerNo,
-        hours,
-        supplierEmail: supplierInfo.from,
-        supplierTitle: supplierInfo.contentTitle,
-        supplierContent: supplierInfo.contentHtml,
-      });
-
-      await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: title,
-        html: htmlContent,
-      });
-
-      const offer = await this.offerService.findOffer(offerNo);
-
-      await this.createMailLog({
-        type: MailStatusType.SUPPLIER_NEW_OFFER,
-        externalId: offerNo,
-        from: this.defaultMail,
-        to: this.defaultMail,
-        cc: this.defaultMailList,
-        contentTitle: title,
-        contentBody: htmlContent,
-        offerId: offer.id,
-        language: 'turkish',
-      });
-    } catch (error) {
-      console.error(`Late supplier offer mail gönderimi başarısız:`, error);
-    }
+    return Object.values(MailLogType);
   }
 
   async sendMail(
@@ -686,351 +304,175 @@ export class MailService {
     subject: string,
     content: string,
     cc: string[] = [],
-    supplierContactId?: number,
-    supplierOfferId?: number,
-    price?: string,
-    note?: string,
     language?: string,
+    searchRequestId?: number,
+    mailLogType?: MailLogType | string
   ) {
     try {
-      // Save supplier result if supplierContactId and price are provided
-      if (supplierContactId && price) {
-        const supplierContact =
-          await this.prisma.supplierContactList.findUnique({
-            where: { id: supplierContactId },
-            include: {
-              supplierOffers: {
-                where: {
-                  deletedAt: null,
-                  id: supplierOfferId,
-                },
-                include: {
-                  offer: true,
-                },
-              },
-            },
-          });
-
-        if (supplierContact && supplierContact.supplierOffers.length > 0) {
-          const offer = supplierContact.supplierOffers[0].offer;
-          await this.prisma.offerResult.create({
-            data: {
-              offerId: offer.id,
-              supplierContactId,
-              price,
-              note,
-            },
-          });
-
-          // Update offer status to OFFER_COMPLETED
-          await this.prisma.offer.update({
-            where: { id: offer.id },
-            data: {
-              status: OfferStatusType.OFFER_COMPLETED,
-            },
-          });
-        }
-      }
-
       await this.mailerService.sendMail({
         to,
-        cc,
         subject,
         html: content,
+        cc,
       });
 
       await this.createMailLog({
-        type: MailStatusType.OTHER,
-        externalId: '',
+        type: mailLogType || MailLogType.GENERAL_COMMUNICATION,
         from: this.defaultMail,
         to,
         cc,
         contentTitle: subject,
         contentBody: content,
-        language: language || 'turkish',
+        language: language || 'tr',
+        searchRequestId,
       });
-
-      return { success: true, message: 'Mail sent successfully' };
+      this.logger.log(`Mail successfully sent to ${to} with subject: ${subject}`);
     } catch (error) {
-      this.logger.error(`Mail gönderimi başarısız - ${to}:`, error);
+      this.logger.error(`Mail gönderimi başarısız - ${to}: ${error.message}`, error.stack);
       throw error;
     }
   }
 
-  async sendCalculatedPriceEmail({
-    offerNo,
-    originalPrice,
-    calculatedPrice,
-    rate,
-    profitMargin,
-    supplierContact,
-  }: {
-    offerNo: string;
-    originalPrice: string;
-    calculatedPrice: string;
-    rate: string;
-    profitMargin: string;
-    supplierContact: {
-      name: string;
-      email: string;
-      companyName: string;
-      gender: string;
-      language?: string;
-    };
+  async sendToBuyer(buyer: Customer, matchingProperties: RealEstateListing[], language?: string, replyTo?: string) {
+    const subject = 'Size Uygun Emlak İlanları Bulundu!';
+    const content = `<p>Merhaba ${buyer.name},</p><p>Arama kriterlerinize uygun aşağıdaki emlak ilanlarını bulduk:</p><ul>${matchingProperties.map(p => `<li>${p.listingNo} - ${p.location} - ${p.price} ${p.currency}</li>`).join('')}</ul>`;
+    const searchRequestId = await this.customerService.getActiveSearchRequestId(buyer.id);
+    await this.sendMail(buyer.email, subject, content, [], language || 'tr', searchRequestId, MailLogType.MATCH_NOTIFICATION_BUYER);
+    this.logger.log(`Matching properties email sent to buyer: ${buyer.email}`);
+  }
+
+  async sendToSeller(seller: Customer, propertyInfo: RealEstateListing, listingNo: string, language?: string, replyTo?: string) {
+    const subject = `İlanınız (#${listingNo}) Hakkında Bilgilendirme`;
+    const content = `<p>Merhaba ${seller.name},</p><p>${listingNo} numaralı ilanınızla ilgili bir gelişme oldu.</p>`;
+    await this.sendMail(seller.email, subject, content, [], language || 'tr', undefined, MailLogType.LISTING_UPDATE_SELLER);
+    this.logger.log(`Seller notification email sent for listing: ${listingNo} to ${seller.email}`);
+  }
+
+  async sendPropertyMatch(buyer: Customer, property: RealEstateListing, seller: Customer, language?: string) {
+    const subject = 'Yeni Bir Emlak Eşleşmesi!';
+    const content = `<p>Merhaba,</p><p>${buyer.name} adlı alıcımız, ${seller.name} adlı satıcımızın ${property.listingNo} numaralı ilanıyla ilgileniyor olabilir.</p>`;
+    await this.sendMail(this.defaultMail, subject, content, [], language || 'tr', undefined, MailLogType.INTERNAL_MATCH_ALERT);
+    this.logger.log(`Property match notification sent for listing: ${property.listingNo}`);
+  }
+
+  async sendViewingConfirmation(buyer: Customer, property: RealEstateListing, viewingDate: Date, language?: string) {
+    const subject = `Emlak Görme Randevunuz Onaylandı: ${property.listingNo}`;
+    const content = `<p>Merhaba ${buyer.name},</p><p>${property.listingNo} numaralı emlak için ${viewingDate.toLocaleString(language || 'tr-TR')} tarihli görme randevunuz onaylanmıştır.</p>`;
+    const searchRequestId = await this.customerService.getActiveSearchRequestId(buyer.id);
+    await this.sendMail(buyer.email, subject, content, [], language || 'tr', searchRequestId, MailLogType.VIEWING_CONFIRMATION_BUYER);
+    this.logger.log(`Viewing confirmation sent to buyer: ${buyer.email} for listing: ${property.listingNo}`);
+  }
+
+  private async logEmail(data: {
+    from: string;
+    to: string;
+    subject: string;
+    content: string;
+    customerId?: number;
+    type: MailLogType | string;
+    listingNo?: string;
+    language?: string;
   }) {
+    let searchRequestIdToLog: number | undefined = undefined;
+    if (data.customerId) {
+        searchRequestIdToLog = await this.customerService.getActiveSearchRequestId(data.customerId);
+    }
+    return this.createMailLog({
+        type: data.type,
+        externalId: data.listingNo,
+        from: data.from,
+        to: data.to,
+        contentTitle: data.subject,
+        contentBody: data.content,
+        searchRequestId: searchRequestIdToLog,
+        language: data.language,
+    });
+  }
+
+  async findLogEntry(
+    referenceId: string,
+    logType: MailStatusType,
+  ): Promise<MailLogs | null> {
+    this.logger.debug(`findLogEntry çağrıldı: referenceId=${referenceId}, logType=${logType}`);
     try {
-      const offer = await this.offerService.findOffer(offerNo);
-      if (!offer) {
-        throw new Error(`Offer ${offerNo} not found`);
-      }
-
-      // Get customer email from the first customer request mail log
-      const customerMailLog = await this.getMailLogs({
-        offerNo,
-        type: MailStatusType.CUSTOMER_NEW_OFFER_REQUEST,
-        startDate: new Date(0),
-        endDate: new Date(),
-        limit: 1,
-        offset: 0,
+      return await this.prisma.mailLogs.findFirst({
+        where: {
+          externalId: referenceId,
+          type: logType.toString(),
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
       });
+    } catch (error) {
+      this.logger.error(
+        `findLogEntry sırasında hata: referenceId=${referenceId}, logType=${logType} - ${error.message}`,
+        error.stack,
+      );
+      return null;
+    }
+  }
 
-      if (!customerMailLog.data.length) {
-        throw new Error(`No customer mail found for offer ${offerNo}`);
-      }
-
-      const customerEmail = customerMailLog.data[0].from;
-
-      const mailOptions = {
-        to: customerEmail,
-        cc: this.defaultMailList,
-      };
-
-      let title: string;
-      let htmlContent: string;
-
-      const templateProps = {
-        offerNo,
-        originalPrice,
-        calculatedPrice,
-        rate,
-        profitMargin,
-        supplierContact,
-      };
-
-      // Use customer's language preference if available, otherwise use supplier's language
-      const language =
-        customerMailLog.data[0].language || supplierContact.language;
-
-      switch (language) {
-        case SupportedLanguages.ENGLISH:
-          title = createEnglishCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createEnglishCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.CROATIAN:
-          title = createCroatianCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createCroatianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.BOSNIAN:
-          title = createBosnianCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createBosnianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.MACEDONIAN:
-          title = createMacedonianCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createMacedonianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.SLOVENIAN:
-          title = createSlovenianCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createSlovenianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.TURKISH:
-        default:
-          title = createTurkishCalculatedPriceTitleTemplate(offerNo);
-          htmlContent = createTurkishCalculatedPriceTemplate(templateProps);
-          break;
-      }
-
+  async sendGenericReminderMail(options: {
+    to: string;
+    subject: string;
+    htmlBody: string;
+    referenceId: string;
+    logType: MailStatusType;
+  }) {
+    this.logger.log(
+      `sendGenericReminderMail çağrıldı: to=${options.to}, subject=${options.subject}, referenceId=${options.referenceId}, logType=${options.logType}`,
+    );
+    try {
       await this.mailerService.sendMail({
-        ...mailOptions,
-        subject: title,
-        html: htmlContent,
+        to: options.to,
+        subject: options.subject,
+        html: options.htmlBody,
       });
+
+      this.logger.log(`Hatırlatma maili gönderildi: ${options.to}, referans: ${options.referenceId}`);
 
       await this.createMailLog({
-        type: MailStatusType.CUSTOMER_OFFER_RESULT,
-        externalId: offerNo,
+        type: options.logType.toString(),
+        externalId: options.referenceId,
         from: this.defaultMail,
-        to: customerEmail,
-        cc: this.defaultMailList,
-        contentTitle: title,
-        contentBody: htmlContent,
-        offerId: offer.id,
-        language: language || 'turkish',
+        to: options.to,
+        contentTitle: options.subject,
+        contentBody: options.htmlBody,
       });
+      this.logger.log(
+        `sendGenericReminderMail için log kaydı oluşturuldu: refId=${options.referenceId}, type=${options.logType}`,
+      );
 
-      // Update offer status
-      await this.offerService.updateOffer(offerNo, {
-        status: OfferStatusType.OFFER_COMPLETED,
-      });
     } catch (error) {
-      console.error(`Calculated price mail sending failed - ${error.message}`);
+      this.logger.error(
+        `sendGenericReminderMail sırasında hata: ${error.message}`, 
+        { to: options.to, subject: options.subject, errorStack: error.stack }
+      );
       throw error;
     }
   }
 
-  async getEmailTemplate(params: {
-    language: SupportedLanguages;
-    offerNo: string;
-    type: 'REQUEST_PRICE' | 'CALCULATED_PRICE';
-    supplierContact?: {
-      name: string;
-      email: string;
-      companyName: string;
-      gender: string;
-    };
-    details?: {
-      originalPrice?: string;
-      calculatedPrice?: string;
-      rate?: string;
-      profitMargin?: string;
-    };
-    deadline?: string;
-  }) {
-    const { language, offerNo, type, supplierContact, details, deadline } =
-      params;
+  async analyzeSimpleEmail(content: string, subject: string, from: string) {
+    this.logger.log(`analyzeSimpleEmail: GptService.analyzeRealEstateEmail çağrılıyor. From: ${from}, Subject: ${subject}`);
+    try {
+      const analysisResult = await this.gptService.analyzeRealEstateEmail(
+        content,
+        from,
+        subject
+      );
 
-    let title: string;
-    let content: string;
-
-    if (type === 'REQUEST_PRICE') {
-      switch (language) {
-        case SupportedLanguages.TURKISH:
-          title = createTurkishRequestPriceTitleTemplate(offerNo);
-          content = createTurkishRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        case SupportedLanguages.ENGLISH:
-          title = createEnglishRequestPriceTitleTemplate(offerNo);
-          content = createEnglishRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        case SupportedLanguages.CROATIAN:
-          title = createCroatianRequestPriceTitleTemplate(offerNo);
-          content = createCroatianRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        case SupportedLanguages.SLOVENIAN:
-          title = createSlovenianRequestPriceTitleTemplate(offerNo);
-          content = createSlovenianRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        case SupportedLanguages.BOSNIAN:
-          title = createBosnianRequestPriceTitleTemplate(offerNo);
-          content = createBosnianRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        case SupportedLanguages.MACEDONIAN:
-          title = createMacedonianRequestPriceTitleTemplate(offerNo);
-          content = createMacedonianRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
-          break;
-
-        default:
-          title = createEnglishRequestPriceTitleTemplate(offerNo);
-          content = createEnglishRequestPriceTemplate({
-            name: supplierContact.name,
-            offerNo,
-            details,
-            deadline,
-          });
+      if (analysisResult) {
+        this.logger.log('analyzeSimpleEmail: GPT analysis successful.');
+        // İsteğe bağlı: Burada loglama veya basit bir dönüşüm yapılabilir.
+        // Şimdilik doğrudan sonucu dönüyoruz.
+      } else {
+        this.logger.warn('analyzeSimpleEmail: GPT analysis returned null or failed.');
       }
-    } else if (type === 'CALCULATED_PRICE') {
-      const templateProps = {
-        offerNo,
-        originalPrice: details.originalPrice,
-        calculatedPrice: details.calculatedPrice,
-        rate: details.rate,
-        profitMargin: details.profitMargin,
-        supplierContact,
-      };
-
-      switch (language) {
-        case SupportedLanguages.TURKISH:
-          title = createTurkishCalculatedPriceTitleTemplate(offerNo);
-          content = createTurkishCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.ENGLISH:
-          title = createEnglishCalculatedPriceTitleTemplate(offerNo);
-          content = createEnglishCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.CROATIAN:
-          title = createCroatianCalculatedPriceTitleTemplate(offerNo);
-          content = createCroatianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.BOSNIAN:
-          title = createBosnianCalculatedPriceTitleTemplate(offerNo);
-          content = createBosnianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.MACEDONIAN:
-          title = createMacedonianCalculatedPriceTitleTemplate(offerNo);
-          content = createMacedonianCalculatedPriceTemplate(templateProps);
-          break;
-
-        case SupportedLanguages.SLOVENIAN:
-          title = createSlovenianCalculatedPriceTitleTemplate(offerNo);
-          content = createSlovenianCalculatedPriceTemplate(templateProps);
-          break;
-
-        default:
-          title = createEnglishCalculatedPriceTitleTemplate(offerNo);
-          content = createEnglishCalculatedPriceTemplate(templateProps);
-      }
+      return analysisResult; // veya daha yapılandırılmış bir dönüş
+    } catch (error) {
+      this.logger.error(`Error in analyzeSimpleEmail: ${error.message}`, error.stack);
+      throw error; // Hatayı yukarıya fırlat
     }
-
-    return {
-      title,
-      content,
-    };
-  }
-
-  getMailForSupplier(supplierName: string, mailContent: string) {
-    return mailContent.replace('{SUPPLIER_NAME}', ` ${supplierName} `);
   }
 }

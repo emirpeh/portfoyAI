@@ -4,27 +4,53 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './modules/user/user.module';
 import { CustomerModule } from './modules/customer/customer.module';
-import { DatabaseModule } from './modules/database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { PositionModule } from './modules/position/position.module';
-import { JobModule } from './modules/job/job.module';
 import { MailModule } from './modules/mail/mail.module';
-import { DownloadModule } from './modules/download/download.module';
+import { PrismaModule } from './modules/prisma/prisma.module';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { join } from 'path';
+import { PropertySearchRequestModule } from './modules/property-search-request/property-search-request.module';
+import { GptModule } from './modules/gpt/gpt.module';
+import { OpenAIModule } from './modules/openai/openai.module';
+import { RealEstateModule } from './modules/real-estate/real-estate.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
-    DatabaseModule,
+    MailerModule.forRoot({
+      transport: {
+        host: process.env.MAIL_HOST,
+        port: parseInt(process.env.MAIL_PORT),
+        secure: process.env.MAIL_SECURE === 'true',
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+      },
+      defaults: {
+        from: process.env.MAIL_FROM,
+      },
+      template: {
+        dir: join(__dirname, 'modules/mail/templates'),
+        adapter: new HandlebarsAdapter(),
+        options: {
+          strict: true,
+        },
+      },
+    }),
     UserModule,
     CustomerModule,
     AuthModule,
-    PositionModule,
-    JobModule,
     MailModule,
-    DownloadModule,
+    PrismaModule,
+    PropertySearchRequestModule,
+    GptModule,
+    OpenAIModule,
+    RealEstateModule,
   ],
   controllers: [AppController],
   providers: [AppService],

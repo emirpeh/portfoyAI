@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { CustomerService } from '../customer/customer.service';
 import * as bcrypt from 'bcryptjs';
-import { Role } from '@prisma/client';
+import { Role } from './enums/role.enum';
 
 @Injectable()
 export class AuthService {
@@ -15,7 +15,7 @@ export class AuthService {
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userService.findByEmail(email);
-    if (!user || user.deletedAt) {
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -25,13 +25,13 @@ export class AuthService {
     }
 
     if (user.role === Role.CUSTOMER) {
-      const customerData = await this.customerService.findByUserId(user.id);
+      const customerData = await this.customerService.findByUserId(user.id.toString());
       if (!customerData) {
         throw new UnauthorizedException('Customer profile not found');
       }
     }
 
-    const { ...result } = user;
+    const { password: _, ...result } = user;
     return result;
   }
 
@@ -57,7 +57,6 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        isDefault: user.isDefault,
       },
     };
   }
@@ -67,7 +66,7 @@ export class AuthService {
       const payload = this.jwtService.verify(refresh_token);
       const user = await this.userService.findById(payload.sub);
 
-      if (!user || user.deletedAt) {
+      if (!user) {
         throw new UnauthorizedException('Invalid user');
       }
 

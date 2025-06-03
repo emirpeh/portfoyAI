@@ -8,159 +8,170 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  email     String
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  role      String    @default("USER")
   password  String
-  isDefault Boolean   @default(false)
-  role      Role      @default(CUSTOMER)
-  customer  Customer?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  @@unique([email, deletedAt])
-  @@map("users")
+  customer  Customer? @relation("UserToCustomer")
 }
 
 model Customer {
-  id         Int       @id @default(autoincrement())
-  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String?   @unique
-  externalId String?
-  customerMailList CustomerMailList[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@map("customers")
+  id                  Int                   @id @default(autoincrement())
+  name                String
+  email               String                @unique
+  phone               String?
+  company             String?
+  customerType        String
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  deletedAt           DateTime?
+  userId              Int?                  @unique
+  user                User?                 @relation("UserToCustomer", fields: [userId], references: [id])
+  searchRequests      PropertySearchRequest[]
+  listings            RealEstateListing[]   @relation("SellerListings")
+  realEstateInterests RealEstateInterest[]  @relation("BuyerInterests")
+  buyerPreference     BuyerPreference?      @relation("CustomerToBuyerPreference")
 }
 
+model RealEstateListing {
+  id            Int                  @id @default(autoincrement())
+  listingNo     String               @unique
+  status        String
+  sellerId      Int
+  propertyType  String
+  location      String
+  city          String
+  district      String?
+  neighborhood  String?
+  price         Float
+  currency      String
+  size          Float?
+  roomCount     Int?
+  bathroomCount Int?
+  floor         Int?
+  totalFloors   Int?
+  hasGarage     Boolean              @default(false)
+  hasGarden     Boolean              @default(false)
+  hasPool       Boolean              @default(false)
+  isFurnished   Boolean              @default(false)
+  yearBuilt     Int?
+  description   String
+  features      Json?
+  images        Json?
+  videos        Json?
+  virtualTour   String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deletedAt     DateTime?
+  interests     RealEstateInterest[]
+  seller        Customer             @relation("SellerListings", fields: [sellerId], references: [id])
+  matchedProperties MatchedProperty[]
+}
 
-model CustomerMailList {
-  id        Int       @id @default(autoincrement())
-  mail      String
-  isSend    Boolean   @default(true)
-  customerId Int
-  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  mailLogs  MailLogs[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+model RealEstateInterest {
+  id            Int               @id @default(autoincrement())
+  status        String
+  buyerId       Int
+  listingId     Int
+  notes         String?
+  viewingDate   DateTime?
+  offerAmount   Float?
+  offerCurrency String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  listing       RealEstateListing @relation(fields: [listingId], references: [id])
+  buyer         Customer          @relation("BuyerInterests", fields: [buyerId], references: [id])
+}
 
-  @@map("customer_mail_list")
+model BuyerPreference {
+  id                 Int       @id @default(autoincrement())
+  customerId         Int       @unique
+  customer           Customer  @relation("CustomerToBuyerPreference", fields: [customerId], references: [id])
+  preferredLocations Json?
+  minPrice           Float?
+  maxPrice           Float?
+  currency           String?   @default("TRY")
+  minSize            Float?
+  maxSize            Float?
+  propertyTypes      Json?
+  roomCountMin       Int?
+  roomCountMax       Int?
+  requiredFeatures   Json?
+  hasGarage          Boolean?
+  hasGarden          Boolean?
+  hasPool            Boolean?
+  isFurnished        Boolean?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model PropertySearchRequest {
+  id               Int               @id @default(autoincrement())
+  requestNo        String            @unique
+  status           String            @default("ACTIVE")
+  customerId       Int
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  propertyTypes    Json?
+  locations        Json?
+  minPrice         Float?
+  maxPrice         Float?
+  currency         String?           @default("TRY")
+  minSize          Float?
+  maxSize          Float?
+  minRooms         Int?
+  maxRooms         Int?
+  requiredFeatures Json?
+  notes            String?
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  mailLogs         MailLogs[]
+  matchedProperties MatchedProperty[]
+}
+
+model MatchedProperty {
+  id                Int                   @id @default(autoincrement())
+  searchRequestId   Int
+  listingId         Int
+  status            String                @default("SUGGESTED")
+  matchScore        Float?
+  suggestionReason  String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  searchRequest     PropertySearchRequest @relation(fields: [searchRequestId], references: [id])
+  listing           RealEstateListing     @relation(fields: [listingId], references: [id])
+
+  @@unique([searchRequestId, listingId])
 }
 
 model MailLogs {
-  id          String   @id @default(uuid())
-  externalId  String?
-  from        String   @default("")
-  to          String   @default("")
-  cc          String   @default("")
-  contentTitle String  @default("")
-  contentBody String   @default("")
-  modelResponseMail String?
-  language String?
-  type        String
-  offer       Offer?   @relation(fields: [offerId], references: [id])
-  offerId     Int?
-  customerMailListId Int?
-  customerMailList    CustomerMailList?   @relation(fields: [customerMailListId], references: [id], onDelete: Cascade)
-  supplierOfferId Int?
-  supplierOffer SupplierOffer?   @relation(fields: [supplierOfferId], references: [id], onDelete: Cascade)
-  supplierContactId Int?
-  supplierContact SupplierContactList?   @relation(fields: [supplierContactId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
-  @@map("mail_logs")
+  id                  Int                    @id @default(autoincrement())
+  type                String
+  externalId          String?
+  from                String
+  to                  String
+  cc                  String?
+  contentTitle        String?
+  contentBody         String?
+  parsedData          Json?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  deletedAt           DateTime?
+  language            String?
+  searchRequestId     Int?
+  propertySearchRequest PropertySearchRequest? @relation(fields: [searchRequestId], references: [id])
 }
 
+model CustomerMailList {
+  id         Int       @id @default(autoincrement())
+  customerId Int
+  mail       String
+  isSend     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
-model Offer {
-  id        Int       @id @default(autoincrement())
-  offerNo   String    @unique
-  status    String 
-  loadDate  DateTime? @default(dbgenerated("NULL"))
-  loadCountry String?
-  loadCity String?
-  packagingType String?
-  numOfContainers Int?
-  containerType String?
-  containerDimensions String?
-  goodsType String?
-  isStackable String?
-  customs String?
-  deliveryCountry String?
-  deliveryCity String?
-  deliveryDate DateTime? @default(dbgenerated("NULL"))
-  foreignTrade String?
-  deliveryPostalCode String?
-  calculatedVolume Int?
-  calculatedLdm Int?
-  mailLogs  MailLogs[]
-  SupplierOffer SupplierOffer[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  @@map("offers")
-  OfferResult OfferResult[]
+  @@unique([customerId, mail])
 }
-
-model OfferResult {
-  id        Int       @id @default(autoincrement())
-  offerId   Int
-  offer     Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  supplierContactId Int?
-  supplierContact SupplierContactList?   @relation(fields: [supplierContactId], references: [id])
-  price     String?
-  note      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model OfferConfiguration {
-  id        Int       @id @default(autoincrement())
-  isEnabled Boolean   @default(true)
-  rate      String
-  profitMargin      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model SupplierOffer {
-  id        Int       @id @default(autoincrement())
-  offerId   Int
-  offer     Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  supplierContactId Int?
-  supplierContact SupplierContactList?   @relation(fields: [supplierContactId], references: [id])
-  mailLogs  MailLogs[]
-  price     String?
-  note      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-}
-
-
-model SupplierContactList {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String
-  gender    String
-  companyName String
-  countries String
-  customs String?
-  foreignTrades String
-  mailLogs  MailLogs[]
-  supplierOffers SupplierOffer[]
-  language String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  @@map("supplier_contacts")
-  OfferResult OfferResult[]
-}
-
-enum Role {
-  CUSTOMER
-  ADMIN
-} 

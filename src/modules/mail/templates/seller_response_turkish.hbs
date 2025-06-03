@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gayrimenkul İlanınız Yayında | Portföy AI</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .header {
+      background-color: #2A60FF;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+    }
+    .header img {
+      max-width: 150px;
+    }
+    .content {
+      padding: 20px;
+      background-color: #F5F6FA;
+    }
+    .property-card {
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .property-info {
+      margin-bottom: 10px;
+    }
+    .property-info strong {
+      color: #2A60FF;
+    }
+    .listing-id {
+      background-color: #30C98E;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 3px;
+      font-weight: bold;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .next-steps {
+      background-color: #f0f7ff;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 20px;
+    }
+    .next-steps h3 {
+      color: #2A60FF;
+      margin-top: 0;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="{{companyLogo}}" alt="{{companyName}} Logo">
+      <h1>Gayrimenkul İlanınız Yayında</h1>
+    </div>
+    
+    <div class="content">
+      <p>Sayın {{sellerName}},</p>
+      
+      <div class="ai-response">
+        {{{emailContent}}}
+      </div>
+      
+      <div class="property-card">
+        <div class="listing-id">İlan No: {{listingNo}}</div>
+        
+        <h3>Gayrimenkul Bilgileri</h3>
+        
+        <div class="property-info">
+          <p><strong>Gayrimenkul Tipi:</strong> {{property.propertyType}}</p>
+          <p><strong>Konum:</strong> {{property.location}}</p>
+          <p><strong>Şehir:</strong> {{property.city}}{{#if property.district}}, {{property.district}}{{/if}}{{#if property.neighborhood}}, {{property.neighborhood}}{{/if}}</p>
+          <p><strong>Fiyat:</strong> {{property.price}} {{property.currency}}</p>
+          <p><strong>Metrekare:</strong> {{property.size}} m²</p>
+          <p><strong>Oda Sayısı:</strong> {{property.roomCount}}</p>
+          <p><strong>Banyo Sayısı:</strong> {{property.bathroomCount}}</p>
+        </div>
+      </div>
+      
+      <div class="next-steps">
+        <h3>Bir Sonraki Adımlar</h3>
+        <p>1. İlanınıza gösterilecek ilgiyi size düzenli olarak bildireceğiz.</p>
+        <p>2. Potansiyel alıcılar ilana ilgi gösterdiğinde, sizinle iletişime geçeceğiz.</p>
+        <p>3. İlanınızda değişiklik yapmak isterseniz, bu e-postayı yanıtlayarak bizimle iletişime geçebilirsiniz.</p>
+      </div>
+      
+      <p>Gayrimenkulünüzün satışı/kiralaması sürecinde her adımda yanınızda olacağız.</p>
+      
+      <p>Saygılarımızla,<br>
+      {{companyName}} Ekibi</p>
+    </div>
+    
+    <div class="footer">
+      <p>{{companyName}}</p>
+      <p>Telefon: {{contactPhone}} | E-posta: {{contactEmail}}</p>
+      <p>Bu e-posta size özel gönderilmiştir.</p>
+    </div>
+  </div>
+</body>
+</html> 
