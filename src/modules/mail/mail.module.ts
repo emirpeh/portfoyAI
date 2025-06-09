@@ -1,17 +1,13 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MailService } from './mail.service';
 import { MailController } from './mail.controller';
 import { MailerModule as NestMailerModule } from '@nestjs-modules/mailer';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
-import { PrismaModule } from '../prisma/prisma.module';
+import { DatabaseModule } from '../database/database.module';
 import { GptModule } from '../gpt/gpt.module';
-import { CustomerModule } from '../customer/customer.module';
-import { RealEstateModule } from '../real-estate/real-estate.module';
-import { PropertySearchRequestModule } from '../property-search-request/property-search-request.module';
 import { MailLogService } from './mail-log.service';
-import { MailProcessingService } from './mail-processing.service';
 
 @Module({
   imports: [
@@ -41,14 +37,11 @@ import { MailProcessingService } from './mail-processing.service';
       }),
       inject: [ConfigService],
     }),
-    PrismaModule,
-    forwardRef(() => CustomerModule),
-    forwardRef(() => RealEstateModule),
+    DatabaseModule,
     GptModule,
-    forwardRef(() => PropertySearchRequestModule),
   ],
   controllers: [MailController],
-  providers: [MailService, MailLogService, MailProcessingService],
-  exports: [MailService, MailLogService, MailProcessingService],
+  providers: [MailService, MailLogService],
+  exports: [MailService, MailLogService],
 })
-export class MailModule {}
+export class MailModule { }

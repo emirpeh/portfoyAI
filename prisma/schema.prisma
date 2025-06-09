@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
+  id        String        @id @default(uuid())
   name      String
   email     String    @unique
   role      String    @default("USER")
@@ -19,7 +19,7 @@ model User {
 }
 
 model Customer {
-  id                  Int                   @id @default(autoincrement())
+  id                  String              @id @default(uuid())
   name                String
   email               String                @unique
   phone               String?
@@ -28,22 +28,23 @@ model Customer {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   deletedAt           DateTime?
-  userId              Int?                  @unique
+  userId              String?               @unique
   user                User?                 @relation("UserToCustomer", fields: [userId], references: [id])
   searchRequests      PropertySearchRequest[]
   listings            RealEstateListing[]   @relation("SellerListings")
   realEstateInterests RealEstateInterest[]  @relation("BuyerInterests")
-  buyerPreference     BuyerPreference?      @relation("CustomerToBuyerPreference")
 }
 
 model RealEstateListing {
-  id            Int                  @id @default(autoincrement())
+  id            String               @id @default(uuid())
+  title         String?
   listingNo     String               @unique
-  status        String
-  sellerId      Int
+  status        ListingStatus        @default(ACTIVE)
+  transactionType TransactionType    @default(SALE)
+  sellerId      String
   propertyType  String
   location      String
-  city          String
+  city          String?
   district      String?
   neighborhood  String?
   price         Float
@@ -58,7 +59,7 @@ model RealEstateListing {
   hasPool       Boolean              @default(false)
   isFurnished   Boolean              @default(false)
   yearBuilt     Int?
-  description   String
+  description   String?
   features      Json?
   images        Json?
   videos        Json?
@@ -69,13 +70,15 @@ model RealEstateListing {
   interests     RealEstateInterest[]
   seller        Customer             @relation("SellerListings", fields: [sellerId], references: [id])
   matchedProperties MatchedProperty[]
+  files         RealEstateFile[]
+  offers        Offer[]
 }
 
 model RealEstateInterest {
-  id            Int               @id @default(autoincrement())
+  id            String               @id @default(uuid())
   status        String
-  buyerId       Int
-  listingId     Int
+  buyerId       String
+  listingId     String
   notes         String?
   viewingDate   DateTime?
   offerAmount   Float?
@@ -86,60 +89,40 @@ model RealEstateInterest {
   buyer         Customer          @relation("BuyerInterests", fields: [buyerId], references: [id])
 }
 
-model BuyerPreference {
-  id                 Int       @id @default(autoincrement())
-  customerId         Int       @unique
-  customer           Customer  @relation("CustomerToBuyerPreference", fields: [customerId], references: [id])
-  preferredLocations Json?
-  minPrice           Float?
-  maxPrice           Float?
-  currency           String?   @default("TRY")
-  minSize            Float?
-  maxSize            Float?
-  propertyTypes      Json?
-  roomCountMin       Int?
-  roomCountMax       Int?
-  requiredFeatures   Json?
-  hasGarage          Boolean?
-  hasGarden          Boolean?
-  hasPool            Boolean?
-  isFurnished        Boolean?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-}
-
 model PropertySearchRequest {
-  id               Int               @id @default(autoincrement())
-  requestNo        String            @unique
-  status           String            @default("ACTIVE")
-  customerId       Int
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id               String               @id @default(uuid())
+  requestNo        String               @unique
+  status           String               @default("ACTIVE")
+  transactionType  TransactionType      @default(SALE)
+  customerId       String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
   propertyTypes    Json?
   locations        Json?
   minPrice         Float?
   maxPrice         Float?
-  currency         String?           @default("TRY")
+  currency         String?              @default("TRY")
   minSize          Float?
   maxSize          Float?
   minRooms         Int?
   maxRooms         Int?
   requiredFeatures Json?
   notes            String?
-  customer         Customer          @relation(fields: [customerId], references: [id])
+  customer         Customer?            @relation(fields: [customerId], references: [id])
   mailLogs         MailLogs[]
   matchedProperties MatchedProperty[]
+  offers           Offer[]
 }
 
 model MatchedProperty {
-  id                Int                   @id @default(autoincrement())
-  searchRequestId   Int
-  listingId         Int
-  status            String                @default("SUGGESTED")
+  id                String               @id @default(uuid())
+  searchRequestId   String
+  listingId         String
+  status            String               @default("SUGGESTED")
   matchScore        Float?
   suggestionReason  String?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
   searchRequest     PropertySearchRequest @relation(fields: [searchRequestId], references: [id])
   listing           RealEstateListing     @relation(fields: [listingId], references: [id])
 
@@ -147,31 +130,66 @@ model MatchedProperty {
 }
 
 model MailLogs {
-  id                  Int                    @id @default(autoincrement())
-  type                String
-  externalId          String?
-  from                String
-  to                  String
-  cc                  String?
-  contentTitle        String?
-  contentBody         String?
-  parsedData          Json?
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  deletedAt           DateTime?
-  language            String?
-  searchRequestId     Int?
-  propertySearchRequest PropertySearchRequest? @relation(fields: [searchRequestId], references: [id])
+  id                      String   @id @default(uuid())
+  type                    String
+  externalId              String?  @unique
+  from                    String
+  to                      String
+  cc                      String?
+  contentTitle            String?
+  contentBody             String?
+  isSend                  Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  language                String?
+  status                  String?
+  parsedData              Json?
+  offerId                 String?
+  propertySearchRequest   PropertySearchRequest? @relation(fields: [propertySearchRequestId], references: [id])
+  propertySearchRequestId String?
+  listingId               String?
 }
 
-model CustomerMailList {
-  id         Int       @id @default(autoincrement())
-  customerId Int
-  mail       String
-  isSend     Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+model RealEstateFile {
+  id                String               @id @default(uuid())
+  fileName          String
+  path              String
+  mimetype          String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  listing           RealEstateListing     @relation(fields: [listingId], references: [id])
+  listingId         String
+  realEstateListingId String
+}
 
-  @@unique([customerId, mail])
+model Offer {
+  id                      String      @id @default(uuid())
+  propertySearchRequestId String
+  propertySearchRequest   PropertySearchRequest @relation(fields: [propertySearchRequestId], references: [id])
+  realEstateListingId     String
+  realEstateListing       RealEstateListing @relation(fields: [realEstateListingId], references: [id])
+  status                  OfferStatus @default(PENDING)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  @@unique([propertySearchRequestId, realEstateListingId])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum TransactionType {
+  SALE
+  RENT
+}
+
+enum ListingStatus {
+  ACTIVE
+  INACTIVE
+  PROCESSING
+  SOLD
+  RENTED
 }

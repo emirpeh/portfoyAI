@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 // import OpenAI from 'openai'; // Artık OpenAIService üzerinden kullanılıyor
-import { CreateCompletionDto } from './dto/create-completion.dto';
 import { OpenAIService } from '../openai/openai.service';
 import {
   RealEstateEmailAnalysisSchema,
@@ -13,6 +12,7 @@ import {
   GENERATE_SELLER_RESPONSE_SYSTEM_PROMPT, // Ekledik
   getAnalyzeRealEstateEmailSystemPrompt,
 } from './constants/gpt.constants';
+import type { Customer, RealEstateListing } from '@prisma/client';
 
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -31,11 +31,71 @@ export class GptService {
     this.model = this.configService.get<string>('OPENAI_MODEL') || 'gpt-4o';
   }
 
+  async analyzeTextForRealEstate(
+    content: string,
+  ): Promise<RealEstateEmailAnalysis | null> {
+    this.logger.log(`Metin analizi başlatılıyor...`);
+
+    const systemPrompt = getAnalyzeRealEstateEmailSystemPrompt();
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'assistant',
+        content: 'Evet, verilen metni analiz edip istenen JSON formatında doğru ve eksiksiz bir şekilde döndüreceğim.',
+      },
+      {
+        role: 'user',
+        content: `
+        Lütfen aşağıdaki metni bir emlak talebi olarak analiz et. Metin bir e-posta değil, bir web formu aracılığıyla gönderilmiştir. Bu nedenle 'From', 'Subject' gibi başlık bilgileri yoktur. Sadece içeriğe odaklan.
+        
+        Metin İçeriği:
+        ${content}
+        `,
+      },
+    ];
+
+    try {
+      const completion = await this.openaiService.createChatCompletion({
+        model: this.model,
+        messages,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '';
+      this.logger.debug(`OpenAI Raw Response (JSON Mode): ${responseContent}`);
+
+      const parsedResponse = RealEstateEmailAnalysisSchema.safeParse(
+        JSON.parse(responseContent),
+      );
+
+      if (parsedResponse.success) {
+        this.logger.log('Metin analiz sonucu başarıyla doğrulandı ve alındı');
+        return parsedResponse.data;
+      } else {
+        this.logger.error(
+          `JSON Zod doğrulama hatası: ${parsedResponse.error.errors.map(e => e.message).join(', ')}`,
+        );
+        this.logger.debug(`Doğrulanamayan JSON string: ${responseContent}`);
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(`Metin analiz hatası: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
   async analyzeRealEstateEmail(
     content: string,
-    from: string,
+    fromAddress: string,
+    fromFull: string, // 'İsim <adres>' formatındaki tam 'from' bilgisi
     subject: string,
-  ): Promise<RealEstateEmailAnalysis | null> { // Dönüş tipini güncelledik
+  ): Promise<RealEstateEmailAnalysis | null> {
+    // Dönüş tipini güncelledik
     this.logger.log(`E-posta analizi başlatılıyor: ${subject}`);
 
     const systemPrompt = getAnalyzeRealEstateEmailSystemPrompt();
@@ -46,9 +106,14 @@ export class GptService {
         content: systemPrompt,
       },
       {
+        role: 'assistant',
+        content: 'Evet, verilen e-postayı analiz edip istenen JSON formatında doğru ve eksiksiz bir şekilde döndüreceğim.',
+      },
+      {
         role: 'user',
         content: `
-        E-posta Adresi: ${from}
+        From Header: ${fromFull}
+        E-posta Adresi: ${fromAddress}
         E-posta Konusu: ${subject}
         E-posta İçeriği:
         ${content}
@@ -60,22 +125,15 @@ export class GptService {
       const completion = await this.openaiService.createChatCompletion({
         model: this.model,
         messages,
-        temperature: 0.2, // Daha tutarlı JSON için temperature düşürülebilir
-        // response_format: { type: 'json_object' }, // GPT-4 Turbo ve sonrası için kullanılabilir
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
       });
 
       const responseContent = completion.choices[0]?.message?.content || '';
-      this.logger.debug(`OpenAI Raw Response: ${responseContent}`);
-
-      // Yanıttan JSON bloğunu çıkarmaya çalışalım (eğer ```json ... ``` formatında ise)
-      let jsonStr = responseContent;
-      const jsonBlockMatch = responseContent.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonStr = jsonBlockMatch[1];
-      }
+      this.logger.debug(`OpenAI Raw Response (JSON Mode): ${responseContent}`);
 
       const parsedResponse = RealEstateEmailAnalysisSchema.safeParse(
-        JSON.parse(jsonStr), // Önce string'i JSON objesine parse et
+        JSON.parse(responseContent),
       );
 
       if (parsedResponse.success) {
@@ -85,10 +143,10 @@ export class GptService {
         this.logger.error(
           `JSON Zod doğrulama hatası: ${parsedResponse.error.errors.map(e => e.message).join(', ')}`,
         );
-        this.logger.debug(`Doğrulanamayan JSON string: ${jsonStr}`);
+        this.logger.debug(`Doğrulanamayan JSON string: ${responseContent}`);
         // Hata durumunda bile bir şeyler döndürmeye çalışabiliriz veya null dönebiliriz.
         // Şimdilik null dönelim, çağıran servis bu durumu ele almalı.
-        return null; 
+        return null;
       }
     } catch (error) {
       this.logger.error(`E-posta analiz hatası: ${error.message}`, error.stack);
@@ -97,7 +155,9 @@ export class GptService {
     }
   }
 
-  async generateListingDescription(propertyInfo: any): Promise<string> {
+  async generateListingDescription(
+    propertyInfo: Partial<RealEstateListing>,
+  ): Promise<string> {
     const messages: ChatMessage[] = [
       {
         role: 'system',
@@ -132,8 +192,8 @@ export class GptService {
   }
 
   async generateBuyerResponse(
-    buyerInfo: any, // Tipini belirlemek daha iyi olur (Örn: Customer veya BuyerPreference)
-    matchingProperties: any[], // Tipini belirlemek daha iyi olur (Örn: RealEstateListing[])
+    buyerInfo: Partial<Customer>,
+    matchingProperties: Partial<RealEstateListing>[],
   ): Promise<string> {
     const messages: ChatMessage[] = [
       {
@@ -173,9 +233,9 @@ export class GptService {
   }
 
   async generateSellerResponse(
-    sellerInfo: any, // Tipini belirlemek daha iyi olur (Örn: Customer)
-    propertyInfo: any, // Tipini belirlemek daha iyi olur (Örn: RealEstateListing)
-    listingId: string | null, // listeleme ID si varsa
+    sellerInfo: Partial<Customer>,
+    propertyInfo: Partial<RealEstateListing>,
+    listingId: string | null,
   ): Promise<string> {
     const messages: ChatMessage[] = [
       {

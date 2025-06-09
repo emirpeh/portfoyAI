@@ -1,132 +1,65 @@
-import { Controller, Get, Post, Body, Param, Query, Put, Delete } from '@nestjs/common';
-import { RealEstateService, RealEstateStatus } from './real-estate.service';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Patch,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { RealEstateService } from './real-estate.service';
+import { CreateRealEstateListingDto } from './dto/create-real-estate-listing.dto';
+import { UpdateRealEstateListingDto } from './dto/update-real-estate-listing.dto';
+import { ListingStatus, TransactionType } from '@prisma/client';
 
 @Controller('real-estate')
 export class RealEstateController {
-  constructor(private readonly realEstateService: RealEstateService) {}
+  constructor(private readonly realEstateService: RealEstateService) { }
 
-  // İlan oluşturma
-  @Post('listings')
-  async createListing(@Body() data: any) {
-    return this.realEstateService.createListing(data);
+  @Get('dashboard')
+  getDashboardData() {
+    return this.realEstateService.getDashboardData();
   }
 
-  // İlanları listeleme
-  @Get('listings')
-  async getListings(
-    @Query('city') city?: string,
-    @Query('district') district?: string,
-    @Query('propertyType') propertyType?: string,
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
-    @Query('minSize') minSize?: number,
-    @Query('maxSize') maxSize?: number,
-    @Query('status') status?: RealEstateStatus,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+  @Post()
+  create(@Body() createDto: CreateRealEstateListingDto) {
+    return this.realEstateService.create(createDto);
+  }
+
+  @Get()
+  findAll(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('query') query?: string,
+    @Query('status') status?: ListingStatus,
+    @Query('transactionType') transactionType?: TransactionType,
   ) {
-    return this.realEstateService.getListings({
-      city,
-      district,
-      propertyType,
-      minPrice: minPrice ? Number(minPrice) : undefined,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      minSize: minSize ? Number(minSize) : undefined,
-      maxSize: maxSize ? Number(maxSize) : undefined,
-      status,
+    return this.realEstateService.findAll({
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
+      query,
+      status,
+      transactionType,
     });
   }
 
-  // İlan detayı getirme
-  @Get('listings/:listingNo')
-  async getListing(@Param('listingNo') listingNo: string) {
-    return this.realEstateService.findListing(listingNo);
+  @Get(':id')
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.realEstateService.findOne(id);
   }
 
-  // İlan durumunu güncelleme
-  @Put('listings/:listingNo/status')
-  async updateListingStatus(
-    @Param('listingNo') listingNo: string,
-    @Body('status') status: RealEstateStatus,
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateRealEstateListingDto,
   ) {
-    return this.realEstateService.updateListingStatus(listingNo, status);
+    return this.realEstateService.update(id, updateDto);
   }
 
-  // Alıcı için uygun emlak eşleşmelerini bulma
-  @Get('matches')
-  async findMatches(
-    @Query('buyerId') buyerId: number,
-    @Query('propertyTypes') propertyTypes?: string, // Virgülle ayrılmış
-    @Query('cities') cities?: string, // Virgülle ayrılmış
-    @Query('districts') districts?: string, // Virgülle ayrılmış
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
-    @Query('minSize') minSize?: number,
-    @Query('features') features?: string, // Virgülle ayrılmış
-  ) {
-    return this.realEstateService.findMatchesForBuyer(buyerId, {
-      propertyTypes: propertyTypes?.split(','),
-      cities: cities?.split(','),
-      districts: districts?.split(','),
-      minPrice: minPrice ? Number(minPrice) : undefined,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      minSize: minSize ? Number(minSize) : undefined,
-      features: features?.split(','),
-    });
+  @Delete(':id')
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.realEstateService.remove(id);
   }
-
-  // Konfigürasyon ayarlarını getirme
-  @Get('configuration')
-  async getConfiguration() {
-    return this.realEstateService.getConfiguration();
-  }
-
-  // Konfigürasyon ayarlarını güncelleme
-  @Put('configuration')
-  async updateConfiguration(@Body() config: any) {
-    return this.realEstateService.updateConfiguration(config);
-  }
-  
-  // E-posta işleme
-  @Post('process-email')
-  async processEmail(@Body() emailData: any) {
-    return this.realEstateService.processEmail(emailData);
-  }
-  
-  // İlan güncelleme (tüm alanlar)
-  @Put('listings/:listingNo')
-  async updateListing(
-    @Param('listingNo') listingNo: string,
-    @Body() data: any
-  ) {
-    const existingListing = await this.realEstateService.findListing(listingNo);
-    if (!existingListing) {
-      throw new Error(`Listing with ID ${listingNo} not found`);
-    }
-    
-    return this.realEstateService.processSellerListing({ 
-      from: data.sellerEmail,
-      customer: { name: data.sellerName, email: data.sellerEmail },
-      property: data,
-      type: 'SELLER_LISTING'
-    }, existingListing);
-  }
-  
-  // Görüntüleme talebi oluşturma
-  @Post('viewing-request')
-  async createViewingRequest(@Body() viewingData: any) {
-    const emailData = {
-      from: viewingData.buyerEmail,
-      type: 'PROPERTY_VIEWING_REQUEST',
-      viewingRequest: {
-        propertyId: viewingData.listingNo,
-        preferredDate: viewingData.preferredDate,
-        message: viewingData.message
-      }
-    };
-    
-    return this.realEstateService.processViewingRequest(emailData);
-  }
-} 
+}

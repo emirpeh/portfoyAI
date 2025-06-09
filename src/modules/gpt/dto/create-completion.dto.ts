@@ -12,4 +12,4 @@ export class CreateCompletionDto {
   @IsOptional()
   @IsNumber()
   temperature?: number;
-} 
+}

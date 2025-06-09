@@ -1,4 +1,14 @@
-import { IsString, IsOptional, IsArray, IsNumber, IsEnum, ValidateNested, IsInt, Min, Max, IsNotEmpty, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsNumber,
+  IsEnum,
+  ValidateNested,
+  IsInt,
+  Min,
+  IsNotEmpty,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertySearchRequestStatus } from '../types/property-search-request.status.enum';
 import { IRequestedLocation } from '../types/property-search-request.types';
@@ -140,4 +150,4 @@ export class UpdatePropertySearchRequestDto {
   @IsOptional()
   @IsEnum(PropertySearchRequestStatus)
   status?: PropertySearchRequestStatus;
-} 
+}

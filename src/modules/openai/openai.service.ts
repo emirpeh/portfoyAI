@@ -4,32 +4,30 @@ import OpenAI from 'openai';
 
 @Injectable()
 export class OpenAIService {
-  private readonly logger = new Logger(OpenAIService.name);
-  private readonly openai: OpenAI;
+    private openai: OpenAI;
+    private readonly logger = new Logger(OpenAIService.name);
 
-  constructor(private readonly configService: ConfigService) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY'),
-    });
-  }
-
-  async createChatCompletion(params: {
-    model: string;
-    messages: Array<{
-      role: 'system' | 'user' | 'assistant';
-      content: string;
-    }>;
-    temperature?: number;
-  }) {
-    try {
-      return await this.openai.chat.completions.create({
-        model: params.model,
-        messages: params.messages,
-        temperature: params.temperature ?? 0.7,
-      });
-    } catch (error) {
-      this.logger.error(`OpenAI API Error: ${error.message}`);
-      throw error;
+    constructor(private readonly configService: ConfigService) {
+        const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+        if (!apiKey) {
+            throw new Error('OPENAI_API_KEY is not set in the environment variables.');
+        }
+        this.openai = new OpenAI({ apiKey });
     }
-  }
+
+    async createChatCompletion(
+        params: OpenAI.Chat.ChatCompletionCreateParams,
+    ): Promise<OpenAI.Chat.ChatCompletion> {
+        this.logger.debug('Creating chat completion with params:', params);
+        try {
+            const completion = await this.openai.chat.completions.create({
+                ...params,
+                stream: false,
+            });
+            return completion;
+        } catch (error) {
+            this.logger.error('Error creating chat completion:', error);
+            throw error;
+        }
+    }
 } 

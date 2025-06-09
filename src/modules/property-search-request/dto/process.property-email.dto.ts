@@ -1,7 +1,6 @@
 import {
   IsString,
   IsOptional,
-  IsDate,
   IsNumber,
   IsBoolean,
   IsEnum,
@@ -246,13 +245,15 @@ export class ProcessOfferMailDto {
 // Alıcının emlak arama talebi için DTO
 export class PropertyRequestDto {
   @IsOptional()
-  @IsString()
-  propertyTypes?: string; // Örn: "Daire, Villa" (AI bunu parse edip array'e çevirebilir veya direkt array beklenir)
+  @IsArray()
+  @IsString({ each: true })
+  propertyTypes?: string[];
 
   @IsOptional()
-  @IsString()
-  locations?: string; // Örn: "İstanbul, Kadıköy; Ankara, Çankaya" (AI parse edebilir)
-  
+  @IsArray()
+  @IsString({ each: true })
+  locations?: string[];
+
   @IsOptional()
   @IsNumber()
   minPrice?: number;
@@ -367,7 +368,7 @@ export class PropertyListingDto {
   @IsOptional()
   @IsString()
   features?: string | string[]; // AI'dan string veya array gelebilir, serviste handle edilecek
-  
+
   // Satıcı bilgileri (e-postadan çıkarılabilirse)
   @IsOptional()
   @IsString()
@@ -423,5 +424,5 @@ export class ProcessParsedPropertyEmailDto {
 
   @IsOptional()
   @IsObject() // AI'dan gelen ek, yapılandırılmamış veriler için
-  additionalRawData?: Record<string, any>; 
+  additionalRawData?: Record<string, any>;
 }

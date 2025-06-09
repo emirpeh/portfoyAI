@@ -36,10 +36,15 @@ export const createBosnianRequestPriceTemplate = ({
     .map(([key, value]) => {
       const translation = parseKeyToBS(key);
       if (key === 'isStackable') {
-        const formattedValue = value === true ? 'Da' : value === false ? 'Ne' : value;
-        return translation ? `<p><strong>${translation}:</strong> ${formattedValue}</p>` : '';
+        const formattedValue =
+          value === true ? 'Da' : value === false ? 'Ne' : value;
+        return translation
+          ? `<p><strong>${translation}:</strong> ${formattedValue}</p>`
+          : '';
       }
-      return translation ? `<p><strong>${translation}:</strong> ${value}</p>` : '';
+      return translation
+        ? `<p><strong>${translation}:</strong> ${value}</p>`
+        : '';
     })
     .join('');
 

@@ -36,10 +36,15 @@ export const createEnglishRequestPriceTemplate = ({
     .map(([key, value]) => {
       const translation = parseKeyToEN(key);
       if (key === 'isStackable') {
-        const formattedValue = value === true ? 'Yes' : value === false ? 'No' : value;
-        return translation ? `<p><strong>${translation}:</strong> ${formattedValue}</p>` : '';
+        const formattedValue =
+          value === true ? 'Yes' : value === false ? 'No' : value;
+        return translation
+          ? `<p><strong>${translation}:</strong> ${formattedValue}</p>`
+          : '';
       }
-      return translation ? `<p><strong>${translation}:</strong> ${value}</p>` : '';
+      return translation
+        ? `<p><strong>${translation}:</strong> ${value}</p>`
+        : '';
     })
     .join('');
 

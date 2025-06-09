@@ -19,15 +19,24 @@ export enum MailLogType {
   PASSWORD_RESET = 'PASSWORD_RESET',
   NEWSLETTER = 'NEWSLETTER',
   INTERNAL_MATCH_ALERT = 'INTERNAL_MATCH_ALERT', // Admin veya sisteme dahili eşleşme bildirimi
-  
+
   // Genel & Diğer
   GENERAL_COMMUNICATION = 'GENERAL_COMMUNICATION',
   SYSTEM_ALERT = 'SYSTEM_ALERT',
   OTHER = 'OTHER',
 
   // Hata ve Analiz Durumları
+  PROCESSING = 'PROCESSING', // E-posta alındı ve işleme kuyruğuna girdi
   GPT_ANALYSIS_SUCCESS = 'GPT_ANALYSIS_SUCCESS', // GptService.analyzeRealEstateEmail başarılı olduğunda
-  GPT_ANALYSIS_FAILED = 'GPT_ANALYSIS_FAILED',   // GptService.analyzeRealEstateEmail başarısız olduğunda veya null döndüğünde
+  GPT_ANALYSIS_FAILED = 'GPT_ANALYSIS_FAILED', // GptService.analyzeRealEstateEmail başarısız olduğunda veya null döndüğünde
   ERROR_PROCESSING_MAIL = 'ERROR_PROCESSING_MAIL', // MailService.processMail genel hata yakaladığında
   SEARCH_REQUEST_MISSING_INFO_REMINDER = 'SEARCH_REQUEST_MISSING_INFO_REMINDER', // JobService'den gelen hatırlatma
-} 
+
+  // Yeni eklenen tipler
+  PROPERTY_DETAILS_REQUEST = 'PROPERTY_DETAILS_REQUEST',
+  PROPERTY_LISTING_CONFIRMATION = 'PROPERTY_LISTING_CONFIRMATION',
+  GENERIC_CUSTOMER_REPLY = 'GENERIC_CUSTOMER_REPLY',
+  UNKNOWN = 'UNKNOWN',
+  BUYER_INQUIRY = 'BUYER_INQUIRY',
+  SELLER_LISTING = 'SELLER_LISTING',
+}

@@ -1,0 +1,51 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+PortföyAI Projesi: Emlak Otomasyon Sistemi Frontend Entegrasyonu ve Yönetim Kuralları (Mevcut Kopyalarla)
+Bu belge, emlak sektöründe alıcı ve satıcıları buluşturan, e-posta tabanlı bir otomasyon sisteminin frontend arayüzünü oluşturma projesinin detaylarını ve yönetim kurallarını içermektedir. Mevcut mail-provider-app projesi temel alınacak ve zaten kopyalanmış portfoyAI-app olarak adlandırılmış frontend projesi üzerinde çalışılacaktır. Bu proje, PortföyAI backend'ine uyarlanacak ve gereksiz özelliklerden arındırılacaktır.
+
+Hata Yönetimi
+Herhangi bir geliştirme sürecinde veya üretim ortamında bir hatayla karşılaşıldığında, izlenecek ilk adım, projenin temel alındığı mail-provider-app projesini veya onun backend projesi olan email-provider projesini detaylıca incelemektir. Bu projelerde daha önce benzer hataların nasıl çözüldüğünü anlamak, PortföyAI projesindeki sorunların giderilmesinde hızlı ve etkili bir yol gösterecektir. Hata loglarını, test senaryolarını ve mevcut dökümantasyonu dikkatlice gözden geçirin.
+
+PortföyAI Projesi İçeriği ve Amacı
+Amacımız, bir emlakçının kullanacağı bir sistemde, alıcı ve satıcıları e-posta temelli akıllı bir otomasyon sistemiyle buluşturmaktır. Bu sayede emlak danışmanlarının iş yükünü azaltmayı, süreçleri hızlandırmayı ve doğru eşleştirmelerle müşteri memnuniyetini artırmayı hedefliyoruz.
+
+Ana Unsurlar:
+
+Kullanıcılar: Sistemde alıcılar (mülk arayanlar) ve satıcılar (mülk sahipleri veya mülkünü kiralamak isteyenler) bulunur.
+Manuel Veri Girişi: Admin kullanıcıları, alıcıların almak veya kiralamak istediği mülk bilgileri ya da satıcıların satmak veya kiralamak istediği mülk bilgileri gibi verileri manuel olarak sisteme girebilir.
+E-posta İşleme ve Yapay Zeka (AI) Entegrasyonu: Sistemin kalbinde, e-posta ile gelen talepleri işleyen bir AI bulunur. Bu AI, gelen e-postanın içeriğini analiz ederek kişinin bir alıcı mı yoksa bir satıcı mı olduğunu otomatik olarak belirler:
+Alıcıysa: AI, e-postadan kişinin ne tür bir mülk aradığını (ev, arsa, ticari vb.), işlem tipini (satılık mı, kiralık mı), hangi bölgeden istediğini ve bütçesini çıkarır.
+Satıcıysa: AI, e-postadan satmak veya kiralamak istediği yerin detaylı bilgilerini (konum, mülk tipi, metrekare, oda sayısı, istenen fiyat vb.) alır.
+AI, bu verileri sistemde belirlenen veri yapılarına göre otomatik olarak kategorize eder ve standardize eder.
+Portföy Eşleştirme ve E-posta Gönderimi: Alıcının kriterlerine uygun portföyler sistemde filtrelenir ve belirlenen formatta, e-posta yoluyla otomatik olarak alıcıya gönderilir.
+Talep İşaretleme: Alıcı gönderilen portföylerden birini beğendiğinde veya bir mülkle ilgilendiğinde, bu durum sistemde bir "talep" olarak işaretlenir. Bu talepler daha sonra emlak danışmanları tarafından takip edilebilir.
+Merkezi Dashboard: Tüm alıcı ve satıcılarla ilgili işlemler, aktif talepler, mülk portföyü hareketleri ve genel sistem istatistikleri merkezi bir dashboard üzerinden anlık olarak görüntülenebilir. Bu dashboard, emlak danışmanlarına işlerinin genel performansı hakkında kapsamlı bir bakış sunar ve süreç yönetimini kolaylaştırır.
+Bu proje, mevcut email-provider projesindeki temel altyapıyı ve iş planını kullanacak, ancak iş mantığı tamamen emlak sektörüne özgü işlevselliğe uyarlanacaktır. Yapısal olarak email-provider projesinin sağlam temelleri korunacak, ancak tüm iş akışı ve veri modelleri emlak otomasyonuna yönelik olarak yeniden tasarlanacaktır.
+
+Frontend Entegrasyonu: mail-provider-app'ten portfoyAI-app'e Geçiş (Mevcut Kopyalarla)
+PortföyAI projemizin frontend'ini oluşturmak için, mail-provider-app adlı projenin temel alındığı ve zaten mevcut olan portfoyAI-app projesi üzerinde çalışacağız. Amacımız, mail-provider-app projesindeki tasarımı, sayfa yapısını ve temel mantığı olduğu gibi kullanmak ve bu yapıyı PortföyAI backend'inize bağlamaktır. Bu süreçte, mail-provider-app projesindeki "tedarikçi" (supplier) özelliğini PortföyAI'deki "satıcıya" veya "mülk sahibine" dönüştüreceğiz. Sıfırdan bir frontend tasarımı yapılmayacaktır; mevcut yapıyı adapte edeceğiz.
+
+Görev Listesi: portfoyAI-app Projesini PortföyAI Backend'ine Adapte Etme
+Projenizin kopyaları zaten mevcut olduğundan, doğrudan adaptasyon görevlerine odaklanabiliriz:
+
+PortföyAI Backend Entegrasyonu ve Endpoint Uyarlaması:
+
+portfoyAI-app projesi içindeki API çağrılarının yapıldığı tüm dosyaları ve modülleri tespit edin. Bunlar genellikle src/services, src/api, src/utils/api veya benzeri klasörlerde bulunur.
+Mevcut API çağrılarını ve veri modellerini, PortföyAI backend projenizde tanımlı olan endpointlere ve işlevlere göre eksiksiz bir şekilde güncelleyin.
+Özellikle alıcı ve satıcı (mülk sahibi) yönetimi, mülk portföyü listeleme, talep oluşturma, ilan yayınlama gibi PortföyAI'ye özgü tüm işlevselliklerin backend ile doğru ve sorunsuz bir şekilde haberleştiğinden emin olun. Kimlik doğrulama (authentication) ve yetkilendirme (authorization) mekanizmalarını da backend ile uyumlu hale getirin.
+Mevcut Komponentlerin Uyarlanması, Yeniden Adlandırılması ve Sadeleştirilmesi:
+
+portfoyAI-app içerisinde bulunan tüm komponentleri (örneğin: formlar, veri listeleme tabloları, detay sayfaları, navigasyon elemanları vb.) PortföyAI'nin işlevsel ihtiyaçlarına göre adapte edin.
+Gerektiğinde komponentlerin adlarını anlamlı olacak şekilde yeniden adlandırın (örneğin: SupplierComponent yerine SellerComponent veya PropertyOwnerComponent, EmailTemplateList yerine PropertyListing).
+Komponentlerin içindeki iş mantığını (logic), PortföyAI'nin veri akışına ve iş kurallarına (örneğin: mülk tipi filtreleme, işlem tipi seçimi, bütçe aralığı belirleme) uygun hale getirmek için sadeleştirin veya kapsamlı bir şekilde modifiye edin.
+Kullanılmayan Özelliklerin ve Komponentlerin Kaldırılması:
+
+email-provider projesine özgü olan ve PortföyAI'nin amacı için gereksiz olan tüm özellikleri, sayfaları, komponentleri ve ilgili kodları kesinlikle kaldırın. Buna örnek olarak şunlar verilebilir:
+E-posta şablonları oluşturma, düzenleme ve yönetimi ile ilgili tüm arayüzler ve işlevler.
+Gereksiz veya tekrarlayan e-posta işleme fonksiyonları (AI'ın otomatik olarak yapacağı işler haricindeki manuel e-posta oluşturma/gönderme arayüzleri).
+mail-provider-app'e özgü "tedarikçi-e-posta ilişkileri" veya "kampanya yönetimi" gibi PortföyAI'de doğrudan karşılığı olmayan ve projeye yük getirecek tüm modüller ve bu modüllerle ilgili UI elemanları.
+
+portfoyAI-app projesinde sadece PortföyAI'nin ana işlevlerine hizmet edecek arayüzlerin (alıcı/satıcı/mülk sahibi yönetimi, mülk listeleme ve detayları, talep görüntüleme, dashboard ve manuel veri giriş formları) kalmasını sağlayın. Bu, projenin temiz, performanslı ve bakımı kolay olmasını sağlayacaktır.

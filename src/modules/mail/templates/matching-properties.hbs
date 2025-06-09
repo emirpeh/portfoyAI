@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Talebinize Uygun Emlaklar Bulundu</title>
+    <style>
+        body { font-family: sans-serif; }
+        .listing { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        .listing h3 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <p>Merhaba,</p>
+    <p>
+        <strong>{{requestNo}}</strong> numaralı emlak talebinize uygun <strong>{{listingCount}}</strong> adet yeni ilan bulundu.
+    </p>
+    <hr>
+
+    {{#each listings}}
+    <div class="listing">
+        <h3>{{this.title}}</h3>
+        <p><strong>Konum:</strong> {{this.city}}, {{this.district}}</p>
+        <p><strong>Fiyat:</strong> {{this.price}} {{this.currency}}</p>
+        <p><strong>Oda Sayısı:</strong> {{this.roomCount}}</p>
+        <p><strong>Alan:</strong> {{this.size}} m²</p>
+        <p>
+            Daha fazla bilgi için ilanı inceleyebilirsiniz.
+        </p>
+    </div>
+    {{/each}}
+
+    <p>
+        Bu ilanlarla ilgileniyorsanız veya daha fazla bilgi almak isterseniz bizimle iletişime geçebilirsiniz.
+    </p>
+    <p>
+        İlginiz için teşekkür ederiz.
+    </p>
+</body>
+</html> 

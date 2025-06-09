@@ -1,106 +1,70 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { DatabaseService } from '../database/database.service';
 import { Prisma, MailLogs } from '@prisma/client';
-import { RealEstateEmailAnalysis } from '../gpt/schemas/real-estate-email-analysis.schema';
 
 @Injectable()
 export class MailLogService {
   private readonly logger = new Logger(MailLogService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly database: DatabaseService) { }
 
-  async createInitialLog(
-    data: Omit<
-      Prisma.MailLogsCreateInput,
-      'propertySearchRequest' | 'parsedData'
-    >,
-  ): Promise<MailLogs> {
-    this.logger.log(
-      `Creating initial mail log for sender: ${data.from}, subject: ${data.contentTitle}`,
-    );
+  /**
+   * Yeni bir mail logu oluşturur.
+   */
+  async createLog(data: Prisma.MailLogsCreateInput): Promise<MailLogs> {
     try {
-      return await this.prisma.mailLogs.create({
-        data: {
-          ...data,
-          type: data.type || 'INCOMING_EMAIL', // Varsayılan tip
-        },
+      this.logger.log(
+        `Creating mail log for type: ${data.type}, externalId: ${data.externalId}`,
+      );
+      const newLog = await this.database.mailLogs.create({ data });
+      return newLog;
+    } catch (error) {
+      this.logger.error(
+        `Failed to create mail log: ${error.message}`,
+        JSON.stringify({
+          stack: error.stack,
+          data,
+        }),
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Mevcut bir mail logunu ID ile günceller.
+   */
+  async updateLog(
+    logId: string,
+    data: Prisma.MailLogsUpdateInput,
+  ): Promise<MailLogs> {
+    try {
+      this.logger.log(`Updating mail log with ID: ${logId}`);
+      return await this.database.mailLogs.update({
+        where: { id: logId },
+        data,
       });
     } catch (error) {
       this.logger.error(
-        `Error creating initial mail log: ${error.message}`,
+        `Failed to update mail log with ID ${logId}: ${error.message}`,
         error.stack,
       );
       throw error;
     }
   }
 
-  async updateLogWithAnalysis(
-    logId: number,
-    analysisResult: RealEstateEmailAnalysis | null,
-    status?: string, // Opsiyonel durum, ör: PROCESSED, FAILED_ANALYSIS
-  ): Promise<MailLogs | null> {
-    this.logger.log(
-      `Updating mail log ID: ${logId} with analysis results. Status: ${status || 'N/A'}`,
-    );
-    try {
-      const updateData: Prisma.MailLogsUpdateInput = {
-        parsedData: analysisResult
-          ? (analysisResult as Prisma.JsonObject)
-          : Prisma.DbNull,
-        updatedAt: new Date(),
-      };
-
-      if (analysisResult && analysisResult.type) {
-        // Analiz tipini logun tipine de yansıtabiliriz, ya da ayrı bir alan ekleyebiliriz.
-        // Şimdilik type'ı olduğu gibi bırakıp, parsedData'ya odaklanalım.
-      }
-
-      if (status) {
-        // Prisma şemasında MailLogs için bir 'status' alanı ekleyebiliriz.
-        // Şimdilik logluyoruz, ileride şemaya eklenebilir.
-        this.logger.log(`Mail log ID: ${logId} status to be updated to: ${status}`);
-      }
-
-      return await this.prisma.mailLogs.update({
-        where: { id: logId },
-        data: updateData,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error updating mail log ID ${logId} with analysis: ${error.message}`,
-        error.stack,
-      );
-      return null;
-    }
+  /**
+   * Bir mail logunu ID'sine göre bulur.
+   */
+  async getLogById(id: string): Promise<MailLogs | null> {
+    return this.database.mailLogs.findUnique({ where: { id } });
   }
 
-  async getLogById(id: number): Promise<MailLogs | null> {
-    return this.prisma.mailLogs.findUnique({ where: { id } });
+  /**
+   * Bir mail logunu externalId'sine (örn: message-id) göre bulur.
+   */
+  async getLogByExternalId(externalId: string): Promise<MailLogs | null> {
+    return this.database.mailLogs.findFirst({
+      where: { externalId },
+    });
   }
-
-  // İleride PropertySearchRequest ile ilişkilendirmek için bir metod eklenebilir
-  async linkToPropertySearchRequest(
-    logId: number,
-    searchRequestId: number,
-  ): Promise<MailLogs | null> {
-    this.logger.log(
-      `Linking mail log ID: ${logId} to search request ID: ${searchRequestId}`,
-    );
-    try {
-      return await this.prisma.mailLogs.update({
-        where: { id: logId },
-        data: {
-          propertySearchRequest: {
-            connect: { id: searchRequestId },
-          },
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error linking mail log ID ${logId} to search request ID ${searchRequestId}: ${error.message}`,
-        error.stack,
-      );
-      return null;
-    }
-  }
-} 
+}

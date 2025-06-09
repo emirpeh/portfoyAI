@@ -1,0 +1,18 @@
+export default {
+  "@vite/client": {
+    "prefetch": true,
+    "isEntry": true,
+    "file": "@vite/client",
+    "css": [],
+    "module": true,
+    "resourceType": "script"
+  },
+  "C:/Users/emir_/Desktop/email_provider/portfoyAI/node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt/dist/app/entry.js": {
+    "resourceType": "script",
+    "module": true,
+    "prefetch": true,
+    "preload": true,
+    "isEntry": true,
+    "file": "C:/Users/emir_/Desktop/email_provider/portfoyAI/node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt/dist/app/entry.js"
+  }
+}

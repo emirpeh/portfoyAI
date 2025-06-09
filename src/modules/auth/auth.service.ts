@@ -25,7 +25,9 @@ export class AuthService {
     }
 
     if (user.role === Role.CUSTOMER) {
-      const customerData = await this.customerService.findByUserId(user.id.toString());
+      const customerData = await this.customerService.findByUserId(
+        user.id.toString(),
+      );
       if (!customerData) {
         throw new UnauthorizedException('Customer profile not found');
       }

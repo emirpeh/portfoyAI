@@ -6,7 +6,7 @@ import { UserModule } from './modules/user/user.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MailModule } from './modules/mail/mail.module';
-import { PrismaModule } from './modules/prisma/prisma.module';
+import { DatabaseModule } from './modules/database/database.module';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
@@ -14,13 +14,44 @@ import { PropertySearchRequestModule } from './modules/property-search-request/p
 import { GptModule } from './modules/gpt/gpt.module';
 import { OpenAIModule } from './modules/openai/openai.module';
 import { RealEstateModule } from './modules/real-estate/real-estate.module';
+import { SellerModule } from './modules/seller/seller.module';
+import { DownloadModule } from './modules/download/download.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { LeadModule } from './modules/lead/lead.module';
+import { SeedingModule } from './modules/seeding/seeding.module';
+import { RequestModule } from './modules/request/request.module';
 
 @Module({
   imports: [
+    // Core Modules
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
     }),
+    DatabaseModule,
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
+    SeedingModule,
+
+    // Feature Modules that LISTEN to events
+    CustomerModule,
+    PropertySearchRequestModule,
+    RealEstateModule,
+
+    // Feature Modules that EMIT events or have other dependencies
+    MailModule,
+    GptModule,
+    OpenAIModule,
+
+    // Other Modules
+    AuthModule,
+    UserModule,
+    SellerModule,
+    DownloadModule,
+    LeadModule,
+
+    // Mailer configuration should be here, it's a provider for MailModule mostly
     MailerModule.forRoot({
       transport: {
         host: process.env.MAIL_HOST,
@@ -42,17 +73,10 @@ import { RealEstateModule } from './modules/real-estate/real-estate.module';
         },
       },
     }),
-    UserModule,
-    CustomerModule,
-    AuthModule,
-    MailModule,
-    PrismaModule,
-    PropertySearchRequestModule,
-    GptModule,
-    OpenAIModule,
-    RealEstateModule,
+
+    RequestModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

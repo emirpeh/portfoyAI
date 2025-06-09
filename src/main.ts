@@ -6,6 +6,9 @@ import { ConfigService } from '@nestjs/config';
 import * as express from 'express';
 import { join } from 'path';
 import * as fs from 'fs';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from '@nestjs/common';
+import { SeedingService } from './modules/seeding/seeding.service';
 
 async function bootstrap() {
   /*
@@ -16,8 +19,14 @@ async function bootstrap() {
   */
   const app = await NestFactory.create(AppModule /*, { httpsOptions, }*/);
   const configService = app.get(ConfigService);
+  const logger = new Logger('bootstrap');
 
-  app.setGlobalPrefix('api');
+  // Seed the database
+  const seeder = app.get(SeedingService);
+  await seeder.onModuleInit();
+
+  const globalPrefix = 'api';
+  app.setGlobalPrefix(globalPrefix);
 
   app.enableCors({
     origin: ['http://localhost:3000', 'http://localhost:4000'],
@@ -84,8 +93,19 @@ async function bootstrap() {
     }
   });
 
-  const port = process.env.PORT || 5000;
+  const config = new DocumentBuilder()
+    .setTitle('PortfoyAI API')
+    .setDescription('API for PortfoyAI application')
+    .setVersion('1.0')
+    .addTag('portfoyai')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
+  const port = configService.get<number>('PORT') || 3001;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  logger.log(
+    `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`,
+  );
 }
 bootstrap();

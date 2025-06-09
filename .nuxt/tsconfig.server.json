@@ -1,0 +1,161 @@
+{
+  "compilerOptions": {
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noEmit": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+    "allowSyntheticDefaultImports": true,
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
+    "paths": {
+      "#imports": [
+        "./types/nitro-imports"
+      ],
+      "~/*": [
+        "../*"
+      ],
+      "@/*": [
+        "../*"
+      ],
+      "~~/*": [
+        "../*"
+      ],
+      "@@/*": [
+        "../*"
+      ],
+      "nitropack/types": [
+        "../node_modules/.pnpm/nitropack@2.11.12_better-sqlite3@11.10.0/node_modules/nitropack/types"
+      ],
+      "nitropack/runtime": [
+        "../node_modules/.pnpm/nitropack@2.11.12_better-sqlite3@11.10.0/node_modules/nitropack/runtime"
+      ],
+      "nitropack": [
+        "../node_modules/.pnpm/nitropack@2.11.12_better-sqlite3@11.10.0/node_modules/nitropack"
+      ],
+      "defu": [
+        "../node_modules/.pnpm/defu@6.1.4/node_modules/defu"
+      ],
+      "h3": [
+        "../node_modules/.pnpm/h3@1.15.3/node_modules/h3"
+      ],
+      "consola": [
+        "../node_modules/.pnpm/consola@3.4.2/node_modules/consola"
+      ],
+      "ofetch": [
+        "../node_modules/.pnpm/ofetch@1.4.1/node_modules/ofetch"
+      ],
+      "@unhead/vue": [
+        "../node_modules/.pnpm/@unhead+vue@2.0.10_vue@3.5.16_typescript@5.8.3_/node_modules/@unhead/vue"
+      ],
+      "@nuxt/devtools": [
+        "../node_modules/.pnpm/@nuxt+devtools@2.5.0_vite@6_0694dabc80eee2ea1d3d3cf35c64fd05/node_modules/@nuxt/devtools"
+      ],
+      "vue": [
+        "../node_modules/.pnpm/vue@3.5.16_typescript@5.8.3/node_modules/vue"
+      ],
+      "@vue/runtime-core": [
+        "../node_modules/.pnpm/@vue+runtime-core@3.5.16/node_modules/@vue/runtime-core"
+      ],
+      "@vue/compiler-sfc": [
+        "../node_modules/.pnpm/@vue+compiler-sfc@3.5.16/node_modules/@vue/compiler-sfc"
+      ],
+      "vue-router": [
+        "../node_modules/.pnpm/vue-router@4.5.1_vue@3.5.16_typescript@5.8.3_/node_modules/vue-router"
+      ],
+      "vue-router/auto-routes": [
+        "../node_modules/.pnpm/vue-router@4.5.1_vue@3.5.16_typescript@5.8.3_/node_modules/vue-router/vue-router-auto-routes"
+      ],
+      "unplugin-vue-router/client": [
+        "../node_modules/.pnpm/unplugin-vue-router@0.12.0__be20ca59a360e203deee0ecabe1c1bd4/node_modules/unplugin-vue-router/client"
+      ],
+      "@nuxt/schema": [
+        "../node_modules/.pnpm/@nuxt+schema@3.17.5/node_modules/@nuxt/schema"
+      ],
+      "nuxt": [
+        "../node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt"
+      ],
+      "vite/client": [
+        "../node_modules/.pnpm/vite@6.3.5_@types+node@20.1_43f717ef612bbef28b7d30155357c83d/node_modules/vite/client"
+      ],
+      "#shared": [
+        "../shared"
+      ],
+      "assets": [
+        "../assets"
+      ],
+      "public": [
+        "../public"
+      ],
+      "#build": [
+        "./"
+      ],
+      "#build/*": [
+        "./*"
+      ],
+      "#internal/nuxt/paths": [
+        "../node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt/dist/core/runtime/nitro/utils/paths"
+      ],
+      "pinia": [
+        "../node_modules/.pnpm/pinia@2.3.1_typescript@5.8.3_vue@3.5.16_typescript@5.8.3_/node_modules/pinia/dist/pinia"
+      ],
+      "#color-mode-options": [
+        "./color-mode-options.mjs"
+      ],
+      "#image": [
+        "../node_modules/.pnpm/@nuxt+image@1.10.0_db0@0.3._b771e7fc4ca1c270220badb766b7c6f7/node_modules/@nuxt/image/dist/runtime"
+      ],
+      "#image/*": [
+        "../node_modules/.pnpm/@nuxt+image@1.10.0_db0@0.3._b771e7fc4ca1c270220badb766b7c6f7/node_modules/@nuxt/image/dist/runtime/*"
+      ],
+      "#unhead/composables": [
+        "../node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt/dist/head/runtime/composables/v3"
+      ],
+      "#nuxt-icon-server-bundle": [
+        "./nuxt-icon-server-bundle"
+      ]
+    },
+    "lib": [
+      "esnext",
+      "webworker",
+      "dom.iterable"
+    ]
+  },
+  "include": [
+    "./types/nitro-nuxt.d.ts",
+    "../node_modules/.pnpm/shadcn-nuxt@0.10.4_magicast@0.3.5/node_modules/shadcn-nuxt/runtime/server",
+    "../node_modules/.pnpm/@vueuse+nuxt@10.11.1_magica_d3ebb19e387c0b9ee473ba4cb0ca4e38/node_modules/@vueuse/nuxt/runtime/server",
+    "../node_modules/.pnpm/@nuxt+eslint@0.3.13_eslint@_ca32c29fcfe6ca1c1e51c03896706eae/node_modules/@nuxt/eslint/runtime/server",
+    "../node_modules/.pnpm/@nuxt+icon@1.13.0_magicast@_557359ba6a6957ee0288977003a938ff/node_modules/@nuxt/icon/runtime/server",
+    "../node_modules/.pnpm/@pinia+nuxt@0.5.5_magicast@_f217ab17e8d284aea5caccec4a12dcbe/node_modules/@pinia/nuxt/runtime/server",
+    "../node_modules/.pnpm/@pinia-plugin-persistedstat_f55a638c8d4830b6e03eb0ac6443b4b5/node_modules/@pinia-plugin-persistedstate/nuxt/runtime/server",
+    "../node_modules/.pnpm/@nuxtjs+color-mode@3.5.2_magicast@0.3.5/node_modules/@nuxtjs/color-mode/runtime/server",
+    "../node_modules/.pnpm/@nuxt+image@1.10.0_db0@0.3._b771e7fc4ca1c270220badb766b7c6f7/node_modules/@nuxt/image/runtime/server",
+    "../node_modules/.pnpm/@unocss+nuxt@0.61.9_magicas_8b80e54d73c1d60a79ffdaa6e7bdc34a/node_modules/@unocss/nuxt/runtime/server",
+    "../node_modules/.pnpm/@nuxt+devtools@2.5.0_vite@6_0694dabc80eee2ea1d3d3cf35c64fd05/node_modules/@nuxt/devtools/runtime/server",
+    "../node_modules/.pnpm/@nuxt+telemetry@2.6.6_magicast@0.3.5/node_modules/@nuxt/telemetry/runtime/server",
+    "./types/nitro.d.ts",
+    "../**/*",
+    "../server/**/*"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../node_modules/.pnpm/nuxt@3.17.5_@parcel+watcher_51be972d5c2b626ce68ddf2365451ec0/node_modules/nuxt/node_modules",
+    "../node_modules/.pnpm/shadcn-nuxt@0.10.4_magicast@0.3.5/node_modules/shadcn-nuxt/node_modules",
+    "../node_modules/.pnpm/@vueuse+nuxt@10.11.1_magica_d3ebb19e387c0b9ee473ba4cb0ca4e38/node_modules/@vueuse/nuxt/node_modules",
+    "../node_modules/.pnpm/@nuxt+eslint@0.3.13_eslint@_ca32c29fcfe6ca1c1e51c03896706eae/node_modules/@nuxt/eslint/node_modules",
+    "../node_modules/.pnpm/@nuxt+icon@1.13.0_magicast@_557359ba6a6957ee0288977003a938ff/node_modules/@nuxt/icon/node_modules",
+    "../node_modules/.pnpm/@pinia+nuxt@0.5.5_magicast@_f217ab17e8d284aea5caccec4a12dcbe/node_modules/@pinia/nuxt/node_modules",
+    "../node_modules/.pnpm/@pinia-plugin-persistedstat_f55a638c8d4830b6e03eb0ac6443b4b5/node_modules/@pinia-plugin-persistedstate/nuxt/node_modules",
+    "../node_modules/.pnpm/@nuxtjs+color-mode@3.5.2_magicast@0.3.5/node_modules/@nuxtjs/color-mode/node_modules",
+    "../node_modules/.pnpm/@nuxt+image@1.10.0_db0@0.3._b771e7fc4ca1c270220badb766b7c6f7/node_modules/@nuxt/image/node_modules",
+    "../node_modules/.pnpm/@unocss+nuxt@0.61.9_magicas_8b80e54d73c1d60a79ffdaa6e7bdc34a/node_modules/@unocss/nuxt/node_modules",
+    "../node_modules/.pnpm/@nuxt+devtools@2.5.0_vite@6_0694dabc80eee2ea1d3d3cf35c64fd05/node_modules/@nuxt/devtools/node_modules",
+    "../node_modules/.pnpm/@nuxt+telemetry@2.6.6_magicast@0.3.5/node_modules/@nuxt/telemetry/node_modules",
+    "../dist"
+  ]
+}

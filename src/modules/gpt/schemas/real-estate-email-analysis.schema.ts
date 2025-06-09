@@ -26,17 +26,32 @@ export const EmailAnalysisBuyerPreferencesSchema = z.object({
     )
     .nullable()
     .describe('Alıcının aradığı emlak tipleri'),
-  locations: z.array(z.string()).nullable().describe('Alıcının tercih ettiği şehirler/genel lokasyonlar'),
-  districts: z.array(z.string()).nullable().describe('Alıcının tercih ettiği ilçeler'),
+  locations: z
+    .array(z.string())
+    .nullable()
+    .describe('Alıcının tercih ettiği şehirler/genel lokasyonlar'),
+  districts: z
+    .array(z.string())
+    .nullable()
+    .describe('Alıcının tercih ettiği ilçeler'),
   minPrice: z.number().nullable().describe('Alıcının minimum bütçesi'),
   maxPrice: z.number().nullable().describe('Alıcının maksimum bütçesi'),
   minSize: z.number().nullable().describe('Minimum metrekare'),
   maxSize: z.number().nullable().describe('Maksimum metrekare'),
-  roomCount: z.number().nullable().describe('Oda sayısı tercihi (Belki min/max olarak geliştirilebilir)'),
-  features: z.array(z.string()).nullable().describe('Alıcının aradığı özel nitelikler (balkon, otopark vb.)'),
+  roomCount: z
+    .number()
+    .nullable()
+    .describe('Oda sayısı tercihi (Belki min/max olarak geliştirilebilir)'),
+  features: z
+    .array(z.string())
+    .nullable()
+    .describe('Alıcının aradığı özel nitelikler (balkon, otopark vb.)'),
+  transactionType: z.enum(['SALE', 'RENT']).nullable().describe("İşlem tipi: Satılık mı, Kiralık mı?"),
 });
 
-export type EmailAnalysisBuyerPreferences = z.infer<typeof EmailAnalysisBuyerPreferencesSchema>;
+export type EmailAnalysisBuyerPreferences = z.infer<
+  typeof EmailAnalysisBuyerPreferencesSchema
+>;
 
 export const EmailAnalysisPropertySchema = z.object({
   propertyType: z
@@ -51,10 +66,16 @@ export const EmailAnalysisPropertySchema = z.object({
     ])
     .nullable()
     .describe('Satıcının listelediği emlak tipi'),
-  location: z.string().nullable().describe('Emlağın tam adresi veya genel konumu'),
+  location: z
+    .string()
+    .nullable()
+    .describe('Emlağın tam adresi veya genel konumu'),
   city: z.string().nullable().describe('Emlağın bulunduğu şehir'),
   district: z.string().nullable().describe('Emlağın bulunduğu ilçe'),
-  neighborhood: z.string().nullable().describe('Emlağın bulunduğu mahalle/semt'),
+  neighborhood: z
+    .string()
+    .nullable()
+    .describe('Emlağın bulunduğu mahalle/semt'),
   price: z.number().nullable().describe('Emlağın fiyatı'),
   currency: z
     .enum(['TRY', 'USD', 'EUR', 'GBP', 'OTHER'])
@@ -70,15 +91,28 @@ export const EmailAnalysisPropertySchema = z.object({
   hasPool: z.boolean().nullable().describe('Havuz var mı?'),
   isFurnished: z.boolean().nullable().describe('Eşyalı mı?'),
   yearBuilt: z.number().nullable().describe('İnşa yılı'),
-  description: z.string().nullable().describe('Emlak için GPT tarafından üretilebilecek veya mevcut açıklama'),
-  features: z.array(z.string()).nullable().describe('Emlağın öne çıkan nitelikleri'),
+  description: z
+    .string()
+    .nullable()
+    .describe('Emlak için GPT tarafından üretilebilecek veya mevcut açıklama'),
+  features: z
+    .array(z.string())
+    .nullable()
+    .describe('Emlağın öne çıkan nitelikleri'),
+  transactionType: z.enum(['SALE', 'RENT']).nullable().describe("İşlem tipi: Satılık mı, Kiralık mı?"),
 });
 
 export type EmailAnalysisProperty = z.infer<typeof EmailAnalysisPropertySchema>;
 
 export const EmailAnalysisViewingRequestSchema = z.object({
-  propertyId: z.string().nullable().describe('Görülmek istenen emlağın IDsi veya referansı'),
-  preferredDate: z.string().nullable().describe('Tercih edilen görüntüleme tarihi'),
+  propertyId: z
+    .string()
+    .nullable()
+    .describe('Görülmek istenen emlağın IDsi veya referansı'),
+  preferredDate: z
+    .string()
+    .nullable()
+    .describe('Tercih edilen görüntüleme tarihi'),
   message: z.string().nullable().describe('Müşterinin özel mesajı'),
 });
 
@@ -95,7 +129,12 @@ export const RealEstateEmailAnalysisSchema = z.object({
   buyerPreferences: EmailAnalysisBuyerPreferencesSchema.nullable(),
   property: EmailAnalysisPropertySchema.nullable(),
   viewingRequest: EmailAnalysisViewingRequestSchema.nullable(),
-  summary: z.string().nullable().describe('E-postanın GPT tarafından üretilen kısa özeti'),
+  summary: z
+    .string()
+    .nullable()
+    .describe('E-postanın GPT tarafından üretilen kısa özeti'),
 });
 
-export type RealEstateEmailAnalysis = z.infer<typeof RealEstateEmailAnalysisSchema>; 
+export type RealEstateEmailAnalysis = z.infer<
+  typeof RealEstateEmailAnalysisSchema
+>;

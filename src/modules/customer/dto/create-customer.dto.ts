@@ -1,14 +1,30 @@
-import { IsString, IsOptional, IsEmail, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEmail,
+  IsNotEmpty,
+  IsEnum,
+} from 'class-validator';
+import { CustomerType } from '../customer.service';
 
 export class CreateCustomerDto {
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @IsString()
-  @MinLength(6)
-  password: string;
+  @IsNotEmpty()
+  name: string;
+
+  @IsEnum(CustomerType)
+  @IsNotEmpty()
+  customerType: CustomerType;
 
   @IsString()
   @IsOptional()
-  externalId?: string;
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  company?: string;
 }

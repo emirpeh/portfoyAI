@@ -1,0 +1,1 @@
+{"id":"dev","timestamp":1749439863462,"matcher":{"static":{"/dashboard":{"redirect":"/"},"/components":{"redirect":"/components/accordion"},"/settings":{"redirect":"/settings/profile"}},"wildcard":{},"dynamic":{}},"prerendered":[]}

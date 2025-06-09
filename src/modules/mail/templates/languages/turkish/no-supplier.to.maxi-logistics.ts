@@ -38,12 +38,13 @@ export const createTurkishNoSupplierInfoTemplate = ({
     .map(([key, value]) => {
       const translation = parseKeyToTR(key);
       if (!translation) return '';
-      
+
       if (key === 'isStackable') {
-        const formattedValue = value === true ? 'Evet' : value === false ? 'Hayır' : value;
+        const formattedValue =
+          value === true ? 'Evet' : value === false ? 'Hayır' : value;
         return `<p><strong>${translation}:</strong> ${formattedValue}</p>`;
       }
-      
+
       if (key === 'loadDate' && value instanceof Date) {
         const formattedDate = value.toLocaleString('tr-TR', {
           year: 'numeric',
@@ -54,7 +55,7 @@ export const createTurkishNoSupplierInfoTemplate = ({
         });
         return `<p><strong>${translation}:</strong> ${formattedDate}</p>`;
       }
-      
+
       return `<p><strong>${translation}:</strong> ${value}</p>`;
     })
     .filter(Boolean)

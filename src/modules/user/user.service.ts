@@ -1,182 +1,109 @@
-/* eslint-disable prettier/prettier */
 import {
   Injectable,
-  ConflictException,
   NotFoundException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcryptjs';
-import { Role } from '../auth/enums/role.enum';
+import { DatabaseService } from '../database/database.service';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import * as bcryptjs from 'bcryptjs';
+import { User, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(UserService.name);
 
-  async createUser(
-    email: string,
-    password: string,
-    role: Role = Role.CUSTOMER,
-    name: string = 'User', // name alanı zorunlu
-  ) {
-    const existingUser = await this.findByEmail(email);
-    if (existingUser) {
-      throw new ConflictException('Email already exists');
-    }
+  constructor(private readonly database: DatabaseService) { }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        role,
-        name,
-      },
-    });
-
-    const { password: _, ...result } = user;
-    return result;
+  async findByEmail(email: string): Promise<User | null> {
+    return this.database.user.findUnique({ where: { email } });
   }
 
-  async findAll(offset: number, limit: number, email?: string) {
-    const where = {
-      ...(email && {
-        email: {
-          contains: email,
-        },
-      }),
-    };
-
-    const total = await this.prisma.user.count({ where });
-
-    const users = await this.prisma.user.findMany({
-      where,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-      skip: offset,
-      take: limit,
-      orderBy: {
-        createdAt: 'desc',
+  async findById(id: string): Promise<User | null> {
+    const user = await this.database.user.findUnique({
+      where: {
+        id: String(id),
       },
     });
 
-    const data = users.map(user => {
-      const { password: _, ...result } = user;
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found.`);
+    }
+
+    return user;
+  }
+
+  async findAll(): Promise<Omit<User, 'password'>[]> {
+    return this.database.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const { email, password, name, role } = createUserDto;
+
+    const hashedPassword = await bcryptjs.hash(password, 10);
+
+    try {
+      const user = await this.database.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          role,
+        },
+      });
+      return user;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('Email already exists.');
+      }
+      this.logger.error(`Error creating user: ${error.message}`, error.stack);
+      throw new BadRequestException('Could not create user.');
+    }
+  }
+
+  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    try {
+      const updatedUser = await this.database.user.update({
+        where: { id: id },
+        data: updateUserDto,
+      });
+      return updatedUser;
+    } catch (error) {
+      throw new NotFoundException(`User with ID ${id} not found.`);
+    }
+  }
+
+  async deleteUser(id: string): Promise<User> {
+    try {
+      const user = await this.database.user.delete({
+        where: { id: id },
+      });
+      return user;
+    } catch (error) {
+      throw new NotFoundException(`User with ID ${id} not found.`);
+    }
+  }
+
+  async validateUser(email: string, pass: string): Promise<any> {
+    const user = await this.findByEmail(email);
+    if (user && (await bcryptjs.compare(pass, user.password))) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password, ...result } = user;
       return result;
-    });
-
-    return {
-      data,
-      total,
-    };
-  }
-
-  async getUsersByExternalId(externalId: string[]) {
-    // Emlak sektörü için bu metodu uyarlayalım
-    // Özellik adresi veya ilan numarası gibi bir kimlik kullanılabilir
-    return await this.prisma.customer.findMany({
-      where: {
-        // Eğer externalId alanı modelde yoksa bu filtreyi kaldırın
-        // veya farklı bir alan kullanın, örn: customerCode
-      },
-      include: {
-        user: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
-
-  async findByEmail(email: string) {
-    return this.prisma.user.findFirst({
-      where: {
-        email,
-      },
-    });
-  }
-
-  async findById(id: string) {
-    // ID'yi sayıya dönüştürme - Prisma şeması User.id'yi sayı olarak tanımlıyor
-    const numericId = parseInt(id, 10);
-    
-    if (isNaN(numericId)) {
-      throw new NotFoundException('Invalid user ID');
     }
-    
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: numericId,
-      },
-      include: {
-        customer: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const { password: _, ...result } = user;
-    return result;
-  }
-
-  async softDelete(id: string) {
-    // ID'yi sayıya dönüştürme
-    const numericId = parseInt(id, 10);
-    
-    if (isNaN(numericId)) {
-      throw new NotFoundException('Invalid user ID');
-    }
-    
-    const user = await this.prisma.user.findUnique({
-      where: { id: numericId },
-    });
-    
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    
-    // Emlak sektöründe kullanıcı silme işlemi
-    // Prisma'da deletedAt desteklenmiyorsa, kayıt silme işlemi gerçekleştirin
-    return await this.prisma.user.delete({
-      where: { id: numericId },
-    });
-  }
-
-  async updateUser(id: string, updateUserDto: UpdateUserDto) {
-    // ID'yi sayıya dönüştürme
-    const numericId = parseInt(id, 10);
-    
-    if (isNaN(numericId)) {
-      throw new NotFoundException('Invalid user ID');
-    }
-    
-    const user = await this.findById(id);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (updateUserDto.password) {
-      updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
-    }
-
-    const updatedUser = await this.prisma.user.update({
-      where: { id: numericId },
-      data: updateUserDto,
-      include: { customer: true },
-    });
-
-    const { password: _, ...result } = updatedUser;
-    return result;
+    return null;
   }
 }

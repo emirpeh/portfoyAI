@@ -4,7 +4,7 @@ import { IsString, IsOptional, IsEmail, IsEnum } from 'class-validator';
 enum CustomerType {
   BUYER = 'BUYER',
   SELLER = 'SELLER',
-  BOTH = 'BOTH'
+  BOTH = 'BOTH',
 }
 
 export class UpdateCustomerDto {
