@@ -1,28 +1,58 @@
 import { Type } from 'class-transformer';
 import {
     IsString,
-    IsNotEmpty,
+    IsEmail,
     IsOptional,
-    IsUUID,
-    IsArray,
+    IsNotEmpty,
+    IsEnum,
     IsNumber,
     Min,
     ValidateNested,
+    IsIn,
 } from 'class-validator';
 
-class PropertyRequestDto {
-    @IsArray()
-    @IsString({ each: true })
-    @IsOptional()
-    propertyTypes?: string[];
+enum TransactionType {
+    SATILIK = 'SATILIK',
+    KIRALIK = 'KIRALIK',
+}
 
-    @IsArray()
-    @IsString({ each: true })
+class BuyerDto {
+    @IsString()
+    @IsNotEmpty()
+    name: string;
+
+    @IsEmail()
+    email: string;
+
+    @IsString()
     @IsOptional()
-    locations?: string[];
+    phone?: string;
+}
+
+export class CreatePropertySearchRequestDto {
+    @ValidateNested()
+    @Type(() => BuyerDto)
+    buyer: BuyerDto;
+
+    @IsString()
+    @IsIn(['SALE', 'RENT'])
+    transactionType: string;
+
+    @IsString()
+    @IsNotEmpty()
+    propertyType: string;
+
+    @IsString()
+    @IsOptional()
+    numberOfRooms?: string;
+
+    @IsString()
+    @IsNotEmpty()
+    location: string;
 
     @IsNumber()
     @IsOptional()
+    @Min(0)
     minPrice?: number;
 
     @IsNumber()
@@ -32,46 +62,15 @@ class PropertyRequestDto {
 
     @IsNumber()
     @IsOptional()
-    @Min(1)
-    minRooms?: number;
-
-    @IsNumber()
-    @IsOptional()
+    @Min(0)
     minSize?: number;
 
     @IsNumber()
     @IsOptional()
+    @Min(0)
     maxSize?: number;
 
-    @IsArray()
-    @IsString({ each: true })
-    @IsOptional()
-    features?: string[];
-
     @IsString()
     @IsOptional()
     notes?: string;
-}
-
-export class CreatePropertySearchRequestDto {
-    @IsString()
-    @IsOptional()
-    requestNo?: string;
-
-    @IsUUID()
-    @IsNotEmpty()
-    customerId: string;
-
-    @IsString()
-    @IsOptional()
-    status?: 'ACTIVE' | 'PENDING' | 'MATCH_FOUND' | 'CLOSED' | 'CANCELLED';
-
-    @IsString()
-    @IsOptional()
-    notes?: string;
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => PropertyRequestDto)
-    propertyRequest?: PropertyRequestDto;
 } 

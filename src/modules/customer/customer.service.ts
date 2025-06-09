@@ -294,4 +294,35 @@ export class CustomerService {
       return null;
     }
   }
+
+  async findOrCreateCustomer(name: string, email: string, phone?: string): Promise<Customer> {
+    const existingCustomer = await this.database.customer.findUnique({
+      where: { email },
+    });
+
+    if (existingCustomer) {
+      return existingCustomer;
+    }
+
+    return this.database.customer.create({
+      data: {
+        name,
+        email,
+        phone,
+        customerType: 'BUYER', // Varsayılan olarak Alıcı
+      },
+    });
+  }
+
+  async findCustomerById(id: string): Promise<Customer> {
+    const customer = await this.database.customer.findUnique({
+      where: { id },
+    });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with id ${id} not found`);
+    }
+
+    return customer;
+  }
 }

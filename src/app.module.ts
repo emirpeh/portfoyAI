@@ -21,6 +21,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LeadModule } from './modules/lead/lead.module';
 import { SeedingModule } from './modules/seeding/seeding.module';
 import { RequestModule } from './modules/request/request.module';
+import { RealEstateListingModule } from './modules/real-estate-listing/real-estate-listing.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { RequestModule } from './modules/request/request.module';
     CustomerModule,
     PropertySearchRequestModule,
     RealEstateModule,
+    RealEstateListingModule,
 
     // Feature Modules that EMIT events or have other dependencies
     MailModule,

@@ -1,8 +1,8 @@
 {
-  "name": "maxi-ai-api",
+  "name": "portfoy-ai-api",
   "version": "0.1.1",
   "description": "",
-  "author": "Hüseyin Emre Uslu",
+  "author": "Emir Pehlivan",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

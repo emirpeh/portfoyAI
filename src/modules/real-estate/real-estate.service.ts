@@ -51,7 +51,13 @@ export class RealEstateService {
   async getDashboardData() {
     this.logger.log('Kontrol paneli verileri alınıyor...');
     try {
-      const [totalProperties, totalCustomers, activeRequests, recentRequests] = await this.database.$transaction([
+      const [
+        totalProperties,
+        totalCustomers,
+        activeRequests,
+        recentRequests,
+        recentActivities,
+      ] = await this.database.$transaction([
         this.database.realEstateListing.count(),
         this.database.customer.count(),
         this.database.propertySearchRequest.count({
@@ -59,13 +65,17 @@ export class RealEstateService {
         }),
         this.database.propertySearchRequest.findMany({
           take: 5,
-          orderBy: {
-            createdAt: 'desc',
+          orderBy: { createdAt: 'desc' },
+          include: { customer: true },
+        }),
+        this.database.realEstateListing.findMany({
+          where: {
+            OR: [{ status: 'SOLD' }, { status: 'RENTED' }],
           },
-          include: {
-            customer: true,
-          }
-        })
+          take: 5,
+          orderBy: { updatedAt: 'desc' },
+          include: { seller: true },
+        }),
       ]);
 
       return {
@@ -74,7 +84,8 @@ export class RealEstateService {
           totalCustomers,
           activeRequests,
         },
-        recentRequests,
+        leads: recentRequests,
+        recentActivities,
       };
     } catch (error) {
       this.logger.error(
@@ -208,6 +219,9 @@ export class RealEstateService {
       const updatedListing = await this.database.realEstateListing.update({
         where: { id },
         data,
+        include: {
+          seller: true,
+        },
       });
       this.logger.log(`Emlak ilanı güncellendi: ${id}`);
       return updatedListing;

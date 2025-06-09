@@ -9,6 +9,7 @@ import { DatabaseService } from '../database/database.service';
 import {
   Prisma,
   PropertySearchRequest,
+  $Enums,
 } from '@prisma/client';
 import { CustomerService } from '../customer/customer.service';
 import {
@@ -20,6 +21,8 @@ import {
   EmailAnalysisProperty,
 } from '../gpt/schemas/real-estate-email-analysis.schema';
 import { MailService } from '../mail/mail.service';
+import { CreatePropertySearchRequestDto } from './dto/create-property-search-request.dto'
+import { TransactionType } from '@prisma/client'
 
 @Injectable()
 export class PropertySearchRequestService {
@@ -226,13 +229,66 @@ export class PropertySearchRequestService {
         cursor,
         where,
         orderBy,
-        include: {
-          customer: true, // Müşteri bilgilerini de çekiyoruz
+        select: {
+          id: true,
+          requestNo: true,
+          status: true,
+          transactionType: true,
+          createdAt: true,
+          updatedAt: true,
+          notes: true,
+          propertyTypes: true,
+          locations: true,
+          minPrice: true,
+          maxPrice: true,
+          minRooms: true,
+          maxRooms: true,
+          minSize: true,
+          maxSize: true,
+          currency: true,
+          requiredFeatures: true,
+          customer: true,
+          customerId: true,
         },
       }),
       this.database.propertySearchRequest.count({ where }),
     ]);
 
     return { data, pagination: { total } };
+  }
+
+  async create(
+    createPropertySearchRequestDto: CreatePropertySearchRequestDto,
+  ) {
+    this.logger.debug('Create metodu çağrıldı. Gelen DTO:', JSON.stringify(createPropertySearchRequestDto, null, 2));
+    const { buyer: buyerData, ...requestData } = createPropertySearchRequestDto;
+
+    const customer = await this.customerService.findOrCreateCustomer(
+      buyerData.name,
+      buyerData.email,
+      buyerData.phone,
+    );
+
+    const requestNo = `REQ-${customer.id.slice(0, 4)}-${Date.now().toString().slice(-5)}`;
+
+    const transactionTypeForDb: $Enums.TransactionType = requestData.transactionType === 'SALE' ? 'SALE' : 'RENT';
+    this.logger.debug(`Transaction type dönüştürüldü. Gelen: ${requestData.transactionType}, Dönen: ${transactionTypeForDb}`);
+
+    return this.database.propertySearchRequest.create({
+      data: {
+        requestNo,
+        customer: { connect: { id: customer.id } },
+        status: 'ACTIVE',
+        transactionType: transactionTypeForDb,
+        propertyTypes: [requestData.propertyType],
+        locations: [requestData.location],
+        minPrice: requestData.minPrice,
+        maxPrice: requestData.maxPrice,
+        minRooms: requestData.numberOfRooms ? Number.parseInt(requestData.numberOfRooms, 10) : undefined,
+        minSize: requestData.minSize,
+        maxSize: requestData.maxSize,
+        notes: requestData.notes,
+      },
+    });
   }
 }
