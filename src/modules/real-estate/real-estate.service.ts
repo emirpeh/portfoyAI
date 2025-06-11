@@ -256,69 +256,70 @@ export class RealEstateService {
     propertyData: EmailAnalysisProperty,
     sellerId: string,
   ): Promise<RealEstateListing> {
-    // AI'dan gelen veriden konum bilgisi oluştur veya varsayılan ata
-    const location = propertyData.location ||
-      [propertyData.city, propertyData.district, propertyData.neighborhood]
-        .filter(Boolean) // null veya boş stringleri kaldır
-        .join(', ') ||
-      'Konum Belirtilmedi';
-
-    const data: CreateRealEstateListingDto = {
-      title: `${propertyData.propertyType || 'Emlak'} - ${propertyData.location || 'Konumsuz'
-        }`,
-      description: propertyData.description,
-      price: propertyData.price,
-      currency: propertyData.currency || 'TRY',
-      location: location, // Hazırlanan konumu kullan
-      city: propertyData.city,
-      district: propertyData.district,
-      neighborhood: propertyData.neighborhood,
-      size: propertyData.size,
-      roomCount: propertyData.roomCount,
-      bathroomCount: propertyData.bathroomCount,
-      propertyType: propertyData.propertyType || 'OTHER',
-      sellerId: sellerId,
-      isFurnished: propertyData.isFurnished ?? false,
-      hasGarage: propertyData.hasGarage ?? false,
-      hasGarden: propertyData.hasGarden ?? false,
-      hasPool: propertyData.hasPool ?? false,
-      yearBuilt: propertyData.yearBuilt,
-      transactionType: propertyData.transactionType,
-    };
-
-    // Dinamik olarak yinelenen sorgu koşulu oluştur
-    const whereCondition: Prisma.RealEstateListingWhereInput = {
-      sellerId,
-    };
-    if (data.location) {
-      whereCondition.location = data.location;
-    }
-    if (data.price) {
-      whereCondition.price = data.price;
-    }
-    if (data.size) {
-      whereCondition.size = data.size;
-    }
-    if (data.transactionType) {
-      whereCondition.transactionType = data.transactionType;
+    if (!propertyData) {
+      this.logger.warn('findOrCreateFromAnalysis çağrıldı ancak propertyData boş.');
+      throw new InternalServerErrorException('Analizden emlak verisi alınamadı.');
     }
 
-    // Check if a similar listing already exists to avoid duplicates
-    // Sadece en az bir koşul varsa (sellerId dışında) kontrol et
-    if (Object.keys(whereCondition).length > 1) {
-      const existing = await this.database.realEstateListing.findFirst({
-        where: whereCondition,
+    // TODO: Benzer bir ilanın zaten var olup olmadığını kontrol et (örneğin, aynı satıcıdan benzer konum/m2)
+    // const existingListing = await this.database.realEstateListing.findFirst(...);
+    // if (existingListing) return existingListing;
+
+    const listingNo = await this.generateListingNo(
+      propertyData.propertyType || 'UNKNOWN',
+      propertyData.city || 'UNKNOWN',
+    );
+
+    const title = `${propertyData.propertyType || 'Emlak'} - ${propertyData.location || propertyData.district || propertyData.city || 'Konumsuz'
+      }`;
+
+    try {
+      this.logger.log('Yeni emlak ilanı oluşturuluyor (analizden)...');
+
+      const data: Prisma.RealEstateListingCreateInput = {
+        title,
+        description: propertyData.description,
+        price: propertyData.price ?? 0,
+        currency: propertyData.currency || 'TRY',
+        location: propertyData.location || `${propertyData.district}, ${propertyData.city}`,
+        city: propertyData.city,
+        district: propertyData.district,
+        neighborhood: propertyData.neighborhood,
+        size: propertyData.size,
+        roomCount: propertyData.roomCount,
+        bathroomCount: propertyData.bathroomCount,
+        propertyType: propertyData.propertyType,
+        isFurnished: propertyData.isFurnished || false,
+        hasGarage: propertyData.hasGarage || false,
+        hasGarden: propertyData.hasGarden || false,
+        hasPool: propertyData.hasPool || false,
+        yearBuilt: propertyData.yearBuilt,
+        transactionType: propertyData.transactionType,
+        listingNo,
+        seller: {
+          connect: {
+            id: sellerId,
+          },
+        },
+      };
+
+      const listing = await this.database.realEstateListing.create({
+        data,
       });
 
-      if (existing) {
-        this.logger.log(
-          `Benzer bir ilan zaten mevcut: ${existing.listingNo}. Yeni ilan oluşturulmuyor.`,
-        );
-        return existing;
-      }
+      this.logger.log(
+        `Analizden yeni emlak ilanı oluşturuldu: ${listing.listingNo}`,
+      );
+      return listing;
+    } catch (error) {
+      this.logger.error(
+        `findOrCreateFromAnalysis sırasında emlak ilanı oluşturma hatası: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Analizden emlak ilanı oluşturulamadı.',
+      );
     }
-
-    return this.create(data);
   }
 
   async findListingsBySeller(sellerId: string): Promise<RealEstateListing[]> {
